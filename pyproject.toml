@@ -1,7 +1,7 @@
 [project]
 name = "spectra-pipe"
 version = "0.1.0"
-description = "SpectraPipe - A Hyperspectral Image Processing CLI utility!"
+description = "A Hyperspectral Image Processing CLI Utility!"
 authors = [
     {name = "fernandev",email = "fernando.daza.18@outlook.com"}
 ]
