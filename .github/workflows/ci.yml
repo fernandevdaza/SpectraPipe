@@ -30,6 +30,8 @@ jobs:
             ~/.cache/pypoetry
             .venv
           key: ${{ runner.os }}-py312-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-py312-poetry-
 
       - name: Install dependencies (incl. dev)
         run: |
