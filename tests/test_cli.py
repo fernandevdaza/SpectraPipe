@@ -1,4 +1,3 @@
-import pytest
 from typer.testing import CliRunner
 from pathlib import Path
 from hsi_pipeline.cli import app

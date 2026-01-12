@@ -6,7 +6,6 @@ from .pipeline.run import load_config
 from .transforms.rgb_to_hsi import rgb_to_hsi
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 app = typer.Typer(
     name="SpectraPipe - HSI Pipeline",
@@ -53,7 +52,6 @@ def run(
     import cv2
     import numpy as np
     from PIL import Image, UnidentifiedImageError 
-    import shutil
 
     import time
     from rich.table import Table
@@ -71,13 +69,13 @@ def run(
         with Image.open(input) as img:
             img.load()
     except (IOError, SyntaxError, UnidentifiedImageError) as e:
-        console.print(f"[red]Integrity Error:[/red] Failed to load image data (corrupt or unsupported)")
+        console.print("[red]Integrity Error:[/red] Failed to load image data (corrupt or unsupported)")
         console.print(f"[yellow]Detail:[/yellow] {e}")
         raise typer.Exit(1)
     
     rgb = cv2.imread(str(input))
     if rgb is None:
-        console.print(f"[red]Error:[/red] OpenCV failed to load the image (format might not be supported by cv2).")
+        console.print("[red]Error:[/red] OpenCV failed to load the image (format might not be supported by cv2).")
         raise typer.Exit(1)
 
     rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
@@ -104,7 +102,7 @@ def run(
         console.print("Check folder permissions or run with 'sudo' (not recommended).")
         raise typer.Exit(1)
     except OSError as e:
-        console.print(f"[red]System Error:[/red] Failed to create/access output directory.")
+        console.print("[red]System Error:[/red] Failed to create/access output directory.")
         console.print(f"Detail: {e}")
         raise typer.Exit(1)
 
@@ -124,7 +122,7 @@ def run(
     table.add_row("Total Time", f"{duration:.2f}s")
 
     console.print(table)
-    console.print(f"[green]✓[/green] Pipeline finished successfully.")
+    console.print("[green]✓[/green] Pipeline finished successfully.")
 
     
 
