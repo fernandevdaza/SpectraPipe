@@ -16,134 +16,76 @@ console = Console()
 
 @app.command()
 def run(
-    config: str = typer.Option(
-        "configs/default.yaml",
-        "--config", "-c",
-        help="Path to configuration YAML file"
+    input: Path = typer.Option(
+        ...,
+        "--input", "-i",
+        help="Path to RGB image",
+        exists=True,
+        file_okay=True,
+        readable=True,
+        resolve_path=True
     ),
-    samples: Optional[str] = typer.Option(
+    out: Optional[Path] = typer.Option(
         None,
-        "--samples", "-s",
-        help="Comma separated list of sample IDs to process"
-    ),
-    dataset: str = typer.Option(
-        "all",
-        "--dataset", "-d",
-        help="Dataset to process"
-    ),
-    labels: Optional[str] = typer.Option(
-        None,
-        "--labels", "-l",
-        help="Comma separated list of labels to include"
-    ),
-):
-    """Run the full HSI processing pipeline."""
-
-    samples_filter = samples.split(",") if samples else None
-    labels_filter = labels.split(",") if labels else None
-
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        task = progress.add_task("Running pipeline...", total=None)
-
-        def call_back(current: int, total: int, sample_id: str):
-            progress.update(task, description=f"Processing {sample_id} ({current}/{total})")
-
-
-    console.print(f"\n[green]✓[/green] Pipeline complete!")
-
-@app.command()
-def convert(
-    input: str = typer.Argument(..., help="Path to input RGB image"),
-    output: str = typer.Argument(..., help="Path to output HSI file (.npz)"),
-    config: str = typer.Option(
-        "configs/default.yaml",
-        "--config", "-c",
-        help="Path to configuration YAML file"
-    ),
-    no_ensemble: bool = typer.Option(
-        False,
-        "--no-ensemble",
-        help="Disable test time augmentation (faster but less accurate)"
+        "--out", "-o",
+        help="Path to output directory",
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True
     )
 ):
-    """Convert a single RGB image to HSI"""
-    pass
+    """Run the full HSI processing pipeline."""
+    import cv2
+    import numpy as np
+    from PIL import Image, UnidentifiedImageError 
+    import shutil
 
-@app.command()
-def upscale(
-    input: str = typer.Argument(..., help="Path to input HSI file (.npz)"),
-    output: str = typer.Argument(..., help="Path to output upscaled HSI file (.npz)"),
-    scale: int = typer.Option(2, "--scale", "-s", help="Upscaling factor"),
-    method: str = typer.Option(
-        "bicubic",
-        "--method", "-m",
-        help="Upscaling method: bicubic, bilinear, nearest, edge_guided"
-    ),
-    guide: Optional[str] = typer.Option(
-        None,
-        "--guide", "-g",
-        help="Path to RGB guide image (required for edge_guided)"
-    ),
-):
-    """Upscale an HSI cube."""
-    pass
+    if out is None:
+        out = input.parent / "output"
 
-@app.command()
-def evaluate(
-    input: str = typer.Argument(..., help="Path to input HSI file (.npz)"),
-    output: Optional[str] = typer.Option(
-        None,
-        "--output", "-o",
-        help="Path to output metrics JSON file"
-    ),
-    roi: Optional[str] = typer.Option(
-        None,
-        "--roi", "-r",
-        help="Path to ROI mask file (.npy)"
-    ),
-):
-    """Evaluate HSI quality metrics."""
-    pass
+    console.print(f"Loading image: {input}")
 
-@app.command()
-def info(
-    input: str = typer.Argument(..., help="Path to HSI file (.npz) to inspect"),
-):
-    """Display information about an HSI cube file."""
-    pass
+    try:
+        with Image.open(input) as img:
+            img.load()
+    except (IOError, SyntaxError, UnidentifiedImageError) as e:
+        console.print(f"[red]Integrity Error:[/red] Failed to load image data (corrupt or unsupported)")
+        console.print(f"[yellow]Detail:[/yellow] {e}")
+        raise typer.Exit(1)
+    
+    rgb = cv2.imread(str(input))
+    if rgb is None:
+        console.print(f"[red]Error:[/red] OpenCV failed to load the image (format might not be supported by cv2).")
+        raise typer.Exit(1)
 
-# TODO Implement variety of annotation files with different formats
-@app.command()
-def crop(
-    input_hsi: str = typer.Argument(..., help="Path to input HSI file (.npz)"),
-    output_dir: str = typer.Argument(..., help="Directory to save cropped regions"),
-    annotations: str = typer.Option(
-        ...,
-        "--annotations", "-a",
-        help="Path to annotations file"
-    ),
-    labels: Optional[str] = typer.Option(
-        None,
-        "--labels", "-l",
-        help="Comma-separated list of labels to include"
-    ),
-    min_size: int = typer.Option(
-        16,
-        "--min-size",
-        help="Minimum crop size in pixels"
-    ),
-    square: bool = typer.Option(
-        True,
-        "--square/--no-square",
-        help="Make crops square"
-    ),
-):
-    """Extract ROI crops from an HSI cube."""
-    pass
+    rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
+
+    console.print("Converting RGB → HSI using MST++...")
+
+    try:
+        out.mkdir(parents=True, exist_ok=True)
+        test_file = out / ".write_check"
+        test_file.touch()
+        test_file.unlink()
+
+        # TODO: implement actual HSI conversion
+        # dummy hsi cube
+        hsi = np.zeros((rgb.shape[0], rgb.shape[1], 3))
+        output = out / "hsi_raw_full.npy"
+        np.save(output, hsi)
+    except PermissionError:
+        console.print(f"[red]Permission Error:[/red] Failed to write to output directory: {out}")
+        console.print("Check folder permissions or run with 'sudo' (not recommended).")
+        raise typer.Exit(1)
+    except OSError as e:
+        console.print(f"[red]System Error:[/red] Failed to create/access output directory.")
+        console.print(f"Detail: {e}")
+        raise typer.Exit(1)
+
+    console.print(f"[green]✓[/green] Saved HSI cube to: [bold]{output}[/bold]")
+    console.print(f"  Shape: {hsi.shape}")
+
+    
 
 def main():
     app()
