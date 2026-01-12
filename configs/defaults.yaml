@@ -1,0 +1,21 @@
+# HSI Pipeline Configuration
+
+data:
+
+
+pipeline:
+
+model:
+  name: mst_plus_plus
+  weights_path: src/hsi_pipeline/weights/model_zoo/mst_plus_plus.pth
+  device: cuda  # can be auto, cuda, or cpu
+  ensemble_mode: mean  # can be mean or median for test-time augmentation
+  n_bands: 31
+  wavelength_range: [400, 700]  # in nm
+
+bgclean:
+
+upscale:
+
+output:
+  runs_dir: runs
