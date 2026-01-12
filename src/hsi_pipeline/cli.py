@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Optional
 from .pipeline.run import load_config
 from .transforms.rgb_to_hsi import rgb_to_hsi
+from .preprocess.input_fitting import fit_input, unfit_output
 import typer
+import json
 from rich.console import Console
 
 app = typer.Typer(
@@ -80,9 +82,16 @@ def run(
 
     rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
 
-    if rgb.shape[0] < 32 or rgb.shape[1] < 32:
-        console.print(f"[red]Error:[/red] Image is too small ({rgb.shape[1]}x{rgb.shape[0]}). Minimum required is 32x32 pixels.")
+    console.print(f"Fitting input: policy={cfg.fitting.policy}, multiple={cfg.fitting.multiple}")
+    try:
+        fit_result = fit_input(rgb, multiple=cfg.fitting.multiple, policy=cfg.fitting.policy)
+    except ValueError as e:
+        console.print(f"[red]Fitting Error:[/red] {e}")
+        console.print("[yellow]Suggestion:[/yellow] Ensure image has valid dimensions and is RGB (H, W, 3).")
         raise typer.Exit(1)
+
+    console.print(f"  Original shape: {fit_result.original_shape[0]}x{fit_result.original_shape[1]}")
+    console.print(f"  Fitted shape:   {fit_result.fitted_shape[0]}x{fit_result.fitted_shape[1]}")
 
     console.print("Converting RGB → HSI using MST++...")
 
@@ -94,9 +103,31 @@ def run(
         test_file.touch()
         test_file.unlink()
 
-        hsi = rgb_to_hsi(rgb, cfg, ensemble_override=use_ensemble)
+        hsi_fitted = rgb_to_hsi(fit_result.fitted, cfg, ensemble_override=use_ensemble)
+        
+        hsi = unfit_output(hsi_fitted, fit_result.original_shape, fit_result.padding)
+
         output = out / "hsi_raw_full.npy"
         np.save(output, hsi)
+
+        run_metadata = {
+            "input_path": str(input),
+            "output_path": str(output),
+            "config_path": str(config),
+            "input_shape_original": list(fit_result.original_shape),
+            "input_shape_fitted": list(fit_result.fitted_shape),
+            "fitting_policy": fit_result.policy,
+            "fitting_params": {
+                "multiple": cfg.fitting.multiple,
+                "padding": list(fit_result.padding)
+            },
+            "ensemble_enabled": use_ensemble,
+            "hsi_shape": list(hsi.shape),
+        }
+        metadata_path = out / "run_config.json"
+        with open(metadata_path, "w") as f:
+            json.dump(run_metadata, f, indent=2)
+
     except PermissionError:
         console.print(f"[red]Permission Error:[/red] Failed to write to output directory: {out}")
         console.print("Check folder permissions or run with 'sudo' (not recommended).")
@@ -114,6 +145,9 @@ def run(
     table.add_column("Value", style="green")
 
     table.add_row("Input Image", str(input))
+    table.add_row("Original Shape", f"{fit_result.original_shape[0]}x{fit_result.original_shape[1]}")
+    table.add_row("Fitted Shape", f"{fit_result.fitted_shape[0]}x{fit_result.fitted_shape[1]}")
+    table.add_row("Fitting Policy", fit_result.policy)
     table.add_row("Output Directory", str(out))
     table.add_row("Output File", str(output.name))
     table.add_row("Config File", str(config))

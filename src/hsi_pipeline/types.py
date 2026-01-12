@@ -29,10 +29,18 @@ class OutputConfig:
 
 
 @dataclass
+class FittingConfig:
+    """Configuration for input fitting."""
+    multiple: int = 32
+    policy: str = "pad_to_multiple"
+
+
+@dataclass
 class RunConfig:
     """Complete pipeline configuration."""
     model: ModelConfig = field(default_factory=ModelConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
+    fitting: FittingConfig = field(default_factory=FittingConfig)
     steps: list[str] = field(default_factory=lambda: ["convert"])
     
     @classmethod
@@ -50,5 +58,6 @@ class RunConfig:
         return cls(
             model=ModelConfig(**safe_get(data, "model", {})),
             output=OutputConfig(**safe_get(data, "output", {})),
+            fitting=FittingConfig(**safe_get(data, "fitting", {})),
             steps=pipeline_data.get("steps", ["convert"]),
         )

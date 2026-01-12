@@ -17,5 +17,9 @@ bgclean:
 
 upscale:
 
+fitting:
+  multiple: 32
+  policy: pad_to_multiple
+
 output:
   runs_dir: runs
