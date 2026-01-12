@@ -1,0 +1,3 @@
+[submodule "external/MST-plus-plus"]
+	path = external/MST-plus-plus
+	url = https://github.com/caiyuanhao1998/MST-plus-plus.git

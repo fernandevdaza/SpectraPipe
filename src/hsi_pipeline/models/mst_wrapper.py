@@ -11,8 +11,6 @@ _MST_PATH = Path(__file__).parent.parent.parent.parent / "external" / "MST-plus-
 if str(_MST_PATH) not in sys.path:
     sys.path.insert(0, str(_MST_PATH))
 
-from architecture import model_generator  # noqa: E402
-
 
 
 class MSTppWrapper:
@@ -55,6 +53,7 @@ class MSTppWrapper:
         import os
         
         with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
+             from architecture import model_generator  # noqa: E402
              model = model_generator("mst_plus_plus", str(self.weights_path))
         
         model.to(self.device)
