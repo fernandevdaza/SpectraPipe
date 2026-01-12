@@ -67,3 +67,32 @@ def test_process_image_implicit_out():
 
     if expected_out.exists():
         shutil.rmtree(expected_out)
+
+def test_process_image_really_corrupt():
+    """Test processing a file with jpg extension but corrupt content."""
+    image_path = Path("tests/test_images/corrupt.jpg").resolve()
+    assert image_path.exists()
+    
+    result = runner.invoke(app, ["--input", str(image_path)])
+    
+    assert result.exit_code != 0
+    assert "Integrity Error" in result.stdout or "Error" in result.stdout
+
+def test_process_image_tiny():
+    """Test processing an image that is too small (e.g. 1x1)."""
+    image_path = Path("tests/test_images/tiny.png").resolve()
+    assert image_path.exists()
+    
+    result = runner.invoke(app, ["--input", str(image_path)])
+    
+    assert result.exit_code != 0
+
+def test_process_image_text_format():
+    """Test processing a file with unsupported extension/format (txt)."""
+    image_path = Path("tests/test_images/plain.txt").resolve()
+    assert image_path.exists()
+    
+    result = runner.invoke(app, ["--input", str(image_path)])
+    
+    assert result.exit_code != 0
+    assert "Integrity Error" in result.stdout or "Error" in result.stdout

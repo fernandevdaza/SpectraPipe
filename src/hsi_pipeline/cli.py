@@ -2,7 +2,8 @@
 
 from pathlib import Path
 from typing import Optional
-
+from .pipeline.run import load_config
+from .transforms.rgb_to_hsi import rgb_to_hsi
 import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -32,13 +33,34 @@ def run(
         file_okay=False,
         dir_okay=True,
         resolve_path=True
-    )
+    ),
+    config: Path = typer.Option(
+        "configs/defaults.yaml",
+        "--config", "-c",
+        help="Path to configuration YAML file",
+        exists=True,
+        file_okay=True,
+        readable=True,
+        resolve_path=True
+    ),
+    no_ensemble: bool = typer.Option(
+        False,
+        "--no-ensemble",
+        help="Disable model ensembling (faster but potentially less accurate)."
+    ),
 ):
     """Run the full HSI processing pipeline."""
     import cv2
     import numpy as np
     from PIL import Image, UnidentifiedImageError 
     import shutil
+
+    import time
+    from rich.table import Table
+
+    start_time = time.perf_counter()
+
+    cfg = load_config(config)
 
     if out is None:
         out = input.parent / "output"
@@ -60,17 +82,21 @@ def run(
 
     rgb = cv2.cvtColor(rgb, cv2.COLOR_BGR2RGB)
 
+    if rgb.shape[0] < 32 or rgb.shape[1] < 32:
+        console.print(f"[red]Error:[/red] Image is too small ({rgb.shape[1]}x{rgb.shape[0]}). Minimum required is 32x32 pixels.")
+        raise typer.Exit(1)
+
     console.print("Converting RGB → HSI using MST++...")
 
+    use_ensemble = not no_ensemble
+    
     try:
         out.mkdir(parents=True, exist_ok=True)
         test_file = out / ".write_check"
         test_file.touch()
         test_file.unlink()
 
-        # TODO: implement actual HSI conversion
-        # dummy hsi cube
-        hsi = np.zeros((rgb.shape[0], rgb.shape[1], 3))
+        hsi = rgb_to_hsi(rgb, cfg, ensemble_override=use_ensemble)
         output = out / "hsi_raw_full.npy"
         np.save(output, hsi)
     except PermissionError:
@@ -82,8 +108,23 @@ def run(
         console.print(f"Detail: {e}")
         raise typer.Exit(1)
 
-    console.print(f"[green]✓[/green] Saved HSI cube to: [bold]{output}[/bold]")
-    console.print(f"  Shape: {hsi.shape}")
+    end_time = time.perf_counter()
+    duration = end_time - start_time
+
+    table = Table(title="SpectraPipe Execution Summary", show_header=True, header_style="bold magenta")
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
+
+    table.add_row("Input Image", str(input))
+    table.add_row("Output Directory", str(out))
+    table.add_row("Output File", str(output.name))
+    table.add_row("Config File", str(config))
+    table.add_row("Ensemble Enabled", "No" if no_ensemble else "Yes")
+    table.add_row("HSI Shape", str(hsi.shape))
+    table.add_row("Total Time", f"{duration:.2f}s")
+
+    console.print(table)
+    console.print(f"[green]✓[/green] Pipeline finished successfully.")
 
     
 

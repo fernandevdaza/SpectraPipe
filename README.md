@@ -1,1 +1,1 @@
-# SpectraPipe
+# SpectraPipe - HSI Pipeline
