@@ -5,9 +5,11 @@ from typing import Optional
 from .pipeline.run import load_config
 from .transforms.rgb_to_hsi import rgb_to_hsi
 from .preprocess.input_fitting import fit_input, unfit_output
+from .export.manager import ExportManager
 import typer
-import json
 from rich.console import Console
+
+PIPELINE_VERSION = "0.1.0"
 
 app = typer.Typer(
     name="SpectraPipe - HSI Pipeline",
@@ -52,7 +54,6 @@ def run(
 ):
     """Run the full HSI processing pipeline."""
     import cv2
-    import numpy as np
     from PIL import Image, UnidentifiedImageError 
 
     import time
@@ -64,6 +65,8 @@ def run(
 
     if out is None:
         out = input.parent / "output"
+
+    exporter = ExportManager(out_dir=out, format="npz", overwrite=True)
 
     console.print(f"Loading image: {input}")
 
@@ -98,47 +101,67 @@ def run(
     use_ensemble = not no_ensemble
     
     try:
-        out.mkdir(parents=True, exist_ok=True)
-        test_file = out / ".write_check"
-        test_file.touch()
-        test_file.unlink()
+        exporter.prepare_directory()
 
         hsi_fitted = rgb_to_hsi(fit_result.fitted, cfg, ensemble_override=use_ensemble)
         
         hsi = unfit_output(hsi_fitted, fit_result.original_shape, fit_result.padding)
 
-        output = out / "hsi_raw_full.npy"
-        np.save(output, hsi)
+        exporter.export_array("hsi_raw", hsi)
 
-        run_metadata = {
-            "input_path": str(input),
-            "output_path": str(output),
-            "config_path": str(config),
+        end_time = time.perf_counter()
+        duration = end_time - start_time
+
+        exporter.export_metrics(
+            hsi_shape=hsi.shape,
+            execution_time=duration,
+            ensemble_enabled=use_ensemble,
+        )
+
+        fitting_info = {
+            "policy": fit_result.policy,
+            "multiple": cfg.fitting.multiple,
+            "padding": list(fit_result.padding),
             "input_shape_original": list(fit_result.original_shape),
             "input_shape_fitted": list(fit_result.fitted_shape),
-            "fitting_policy": fit_result.policy,
-            "fitting_params": {
-                "multiple": cfg.fitting.multiple,
-                "padding": list(fit_result.padding)
-            },
-            "ensemble_enabled": use_ensemble,
-            "hsi_shape": list(hsi.shape),
         }
-        metadata_path = out / "run_config.json"
-        with open(metadata_path, "w") as f:
-            json.dump(run_metadata, f, indent=2)
+        exporter.export_run_config(
+            input_path=str(input),
+            config_path=str(config),
+            fitting_info=fitting_info,
+            pipeline_version=PIPELINE_VERSION,
+            extra={"ensemble_enabled": use_ensemble, "hsi_shape": list(hsi.shape)},
+        )
 
-    except PermissionError:
-        console.print(f"[red]Permission Error:[/red] Failed to write to output directory: {out}")
-        console.print("Check folder permissions or run with 'sudo' (not recommended).")
+    except NotADirectoryError as e:
+        console.print(f"[red]Output Error:[/red] {e}")
+        console.print("[yellow]Suggestion:[/yellow] Ensure --out points to a directory, not a file.")
+        raise typer.Exit(1)
+    except PermissionError as e:
+        console.print(f"[red]Permission Error:[/red] {e}")
+        console.print("[yellow]Suggestion:[/yellow] Check folder permissions or choose a different output path.")
+        raise typer.Exit(1)
+    except FileExistsError as e:
+        console.print(f"[red]Collision Error:[/red] {e}")
+        console.print("[yellow]Suggestion:[/yellow] Use a different output directory or enable overwrite.")
         raise typer.Exit(1)
     except OSError as e:
         console.print("[red]System Error:[/red] Failed to create/access output directory.")
         console.print(f"Detail: {e}")
         raise typer.Exit(1)
+    except Exception as e:
+        removed = exporter.cleanup_partial()
+        console.print("[red]Pipeline Error:[/red] Execution failed unexpectedly.")
+        console.print(f"[yellow]Detail:[/yellow] {e}")
+        if removed:
+            console.print(f"[yellow]Cleanup:[/yellow] Removed {len(removed)} partial artifact(s): {', '.join(removed)}")
+        console.print("[yellow]Suggestion:[/yellow] Check input image and model configuration.")
+        raise typer.Exit(1)
 
-    end_time = time.perf_counter()
-    duration = end_time - start_time
+    exported = exporter.list_exported()
+    console.print(f"\n[bold]Exported artifacts ({len(exported)}):[/bold]")
+    for artifact in exported:
+        console.print(f"  • {artifact}")
 
     table = Table(title="SpectraPipe Execution Summary", show_header=True, header_style="bold magenta")
     table.add_column("Metric", style="cyan")
@@ -149,7 +172,6 @@ def run(
     table.add_row("Fitted Shape", f"{fit_result.fitted_shape[0]}x{fit_result.fitted_shape[1]}")
     table.add_row("Fitting Policy", fit_result.policy)
     table.add_row("Output Directory", str(out))
-    table.add_row("Output File", str(output.name))
     table.add_row("Config File", str(config))
     table.add_row("Ensemble Enabled", "No" if no_ensemble else "Yes")
     table.add_row("HSI Shape", str(hsi.shape))
