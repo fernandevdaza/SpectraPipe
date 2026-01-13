@@ -10,8 +10,6 @@ def test_app_info():
     """Test that the app help command works."""
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    # On CI, help output formatting might differ or contain escape codes.
-    # Just checking exit code is safer, or checking basic words.
     assert "Usage" in result.stdout or "Options" in result.stdout
 
 @patch("hsi_pipeline.cli.rgb_to_hsi")
@@ -25,8 +23,6 @@ def test_process_image_success(mock_rgb_to_hsi):
     result = runner.invoke(app, ["--input", str(image_path)])
     
     assert result.exit_code == 0
-    # Check calling arguments if needed, but the important part is it ran.
-    # Logs might vary depending on where mock interrupts, but "Converting" is before call.
     assert "Converting RGB" in result.stdout
     assert "Pipeline finished successfully" in result.stdout
 
@@ -73,7 +69,7 @@ def test_process_image_implicit_out(mock_rgb_to_hsi):
         
     assert result.exit_code == 0
     assert expected_out.exists()
-    assert (expected_out / "hsi_raw_full.npy").exists()
+    assert (expected_out / "hsi_raw_full.npz").exists()
 
     if expected_out.exists():
         shutil.rmtree(expected_out)
@@ -136,10 +132,10 @@ def test_metadata_written(mock_rgb_to_hsi):
     with open(metadata_path) as f:
         metadata = json.load(f)
     
-    assert "input_shape_original" in metadata
-    assert "input_shape_fitted" in metadata
-    assert "fitting_policy" in metadata
-    assert metadata["fitting_policy"] == "pad_to_multiple"
+    assert "fitting" in metadata
+    assert "input_shape_original" in metadata["fitting"]
+    assert "input_shape_fitted" in metadata["fitting"]
+    assert metadata["fitting"]["policy"] == "pad_to_multiple"
     
     if out_path.exists():
         shutil.rmtree(out_path)
@@ -162,7 +158,7 @@ def test_smoke_oddsize_image(mock_rgb_to_hsi):
     
     assert result.exit_code == 0
     
-    assert (out_path / "hsi_raw_full.npy").exists()
+    assert (out_path / "hsi_raw_full.npz").exists()
     
     assert "Original shape" in result.stdout
     assert "Fitted shape" in result.stdout
@@ -170,8 +166,35 @@ def test_smoke_oddsize_image(mock_rgb_to_hsi):
     import json
     with open(out_path / "run_config.json") as f:
         metadata = json.load(f)
-    assert "input_shape_original" in metadata
-    assert "input_shape_fitted" in metadata
+    assert "input_shape_original" in metadata["fitting"]
+    assert "input_shape_fitted" in metadata["fitting"]
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+
+
+@patch("hsi_pipeline.cli.rgb_to_hsi")
+def test_smoke_us06_minimal_artifacts(mock_rgb_to_hsi):
+    """US-06: Verify minimal artifact structure is exported."""
+    import shutil
+    
+    mock_rgb_to_hsi.return_value = np.zeros((64, 64, 31), dtype=np.float32)
+    
+    image_path = Path("tests/test_images/01.bmp").resolve()
+    out_path = Path("tests/test_out_us06").resolve()
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+    
+    result = runner.invoke(app, ["--input", str(image_path), "--out", str(out_path)])
+    
+    assert result.exit_code == 0
+    
+    assert (out_path / "hsi_raw_full.npz").exists(), "hsi_raw_full.npz missing"
+    assert (out_path / "metrics.json").exists(), "metrics.json missing"
+    assert (out_path / "run_config.json").exists(), "run_config.json missing"
+    
+    assert "Exported artifacts" in result.stdout
     
     if out_path.exists():
         shutil.rmtree(out_path)
