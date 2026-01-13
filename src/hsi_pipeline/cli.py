@@ -180,7 +180,53 @@ def run(
     console.print(table)
     console.print("[green]✓[/green] Pipeline finished successfully.")
 
+
+@app.command()
+def metrics(
+    from_dir: Path = typer.Option(
+        ...,
+        "--from", "-f",
+        help="Output directory containing metrics.json",
+        resolve_path=True
+    ),
+):
+    """Display a human-readable summary of metrics from a previous run."""
+    from .metrics.reader import read_metrics, MetricsNotFoundError, MetricsCorruptError
+    from .metrics.formatter import format_metrics, print_warnings
     
+    # Validate directory
+    if not from_dir.exists():
+        console.print(f"[red]Error:[/red] Directory not found: {from_dir}")
+        console.print("[yellow]Suggestion:[/yellow] Check the path and try again.")
+        raise typer.Exit(1)
+    
+    if not from_dir.is_dir():
+        console.print(f"[red]Error:[/red] Path is not a directory: {from_dir}")
+        console.print("[yellow]Suggestion:[/yellow] Provide a directory path, not a file.")
+        raise typer.Exit(1)
+    
+    metrics_path = from_dir / "metrics.json"
+    
+    try:
+        result = read_metrics(metrics_path)
+    except MetricsNotFoundError:
+        console.print(f"[red]Error:[/red] metrics.json not found in: {from_dir}")
+        console.print("[yellow]Suggestion:[/yellow] Run `spectrapipe run --input <image> --out <dir>` first to generate metrics.")
+        raise typer.Exit(1)
+    except MetricsCorruptError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        console.print("[yellow]Suggestion:[/yellow] Regenerate metrics with `spectrapipe run --input <image> --out <dir>`.")
+        raise typer.Exit(1)
+    
+    # Print warnings if any
+    if result.warnings:
+        print_warnings(result.warnings, console)
+    
+    # Print formatted metrics
+    format_metrics(result.data, console)
+    
+    console.print("[green]✓[/green] Metrics loaded successfully.")
+
 
 def main():
     app()
