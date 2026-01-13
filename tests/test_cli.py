@@ -20,7 +20,7 @@ def test_process_image_success(mock_rgb_to_hsi):
     image_path = Path("tests/test_images/01.bmp").resolve()
     assert image_path.exists(), "Test image 01.bmp not found"
 
-    result = runner.invoke(app, ["--input", str(image_path)])
+    result = runner.invoke(app, ["run", "--input", str(image_path)])
     
     assert result.exit_code == 0
     assert "Converting RGB" in result.stdout
@@ -31,20 +31,20 @@ def test_process_image_invalid():
     image_path = Path("tests/test_images/fake.png").resolve()
     assert image_path.exists(), "Test image fake.png not found"
     
-    result = runner.invoke(app, ["--input", str(image_path)])
+    result = runner.invoke(app, ["run", "--input", str(image_path)])
     
     assert result.exit_code == 1
     assert "Integrity Error" in result.stdout
 
 def test_process_image_not_found():
     """Test processing a non existent image."""
-    result = runner.invoke(app, ["--input", "non_existent.jpg"])
+    result = runner.invoke(app, ["run", "--input", "non_existent.jpg"])
     
     assert result.exit_code != 0
 
 def test_run_no_args():
     """Test running without arguments. Should fail as input is required."""
-    result = runner.invoke(app, [])
+    result = runner.invoke(app, ["run"])
     assert result.exit_code != 0
     assert result.exit_code == 2
 
@@ -62,7 +62,7 @@ def test_process_image_implicit_out(mock_rgb_to_hsi):
     if expected_out.exists():
         shutil.rmtree(expected_out)
 
-    result = runner.invoke(app, ["--input", str(image_path)])
+    result = runner.invoke(app, ["run", "--input", str(image_path)])
     
     if result.exit_code != 0:
         print(f"Output: {result.stdout}")
@@ -79,7 +79,7 @@ def test_process_image_really_corrupt():
     image_path = Path("tests/test_images/corrupt.jpg").resolve()
     assert image_path.exists()
     
-    result = runner.invoke(app, ["--input", str(image_path)])
+    result = runner.invoke(app, ["run", "--input", str(image_path)])
     
     assert result.exit_code != 0
     assert "Integrity Error" in result.stdout or "Error" in result.stdout
@@ -92,7 +92,7 @@ def test_process_image_tiny(mock_rgb_to_hsi):
     image_path = Path("tests/test_images/tiny.png").resolve()
     assert image_path.exists()
     
-    result = runner.invoke(app, ["--input", str(image_path)])
+    result = runner.invoke(app, ["run", "--input", str(image_path)])
     
     assert result.exit_code == 0
     assert "Fitted shape" in result.stdout
@@ -102,7 +102,7 @@ def test_process_image_text_format():
     image_path = Path("tests/test_images/plain.txt").resolve()
     assert image_path.exists()
     
-    result = runner.invoke(app, ["--input", str(image_path)])
+    result = runner.invoke(app, ["run", "--input", str(image_path)])
     
     assert result.exit_code != 0
     assert "Integrity Error" in result.stdout or "Error" in result.stdout
@@ -122,7 +122,7 @@ def test_metadata_written(mock_rgb_to_hsi):
     if out_path.exists():
         shutil.rmtree(out_path)
     
-    result = runner.invoke(app, ["--input", str(image_path), "--out", str(out_path)])
+    result = runner.invoke(app, ["run", "--input", str(image_path), "--out", str(out_path)])
     
     assert result.exit_code == 0
     
@@ -154,7 +154,7 @@ def test_smoke_oddsize_image(mock_rgb_to_hsi):
     if out_path.exists():
         shutil.rmtree(out_path)
     
-    result = runner.invoke(app, ["--input", str(image_path), "--out", str(out_path)])
+    result = runner.invoke(app, ["run", "--input", str(image_path), "--out", str(out_path)])
     
     assert result.exit_code == 0
     
@@ -186,7 +186,7 @@ def test_smoke_us06_minimal_artifacts(mock_rgb_to_hsi):
     if out_path.exists():
         shutil.rmtree(out_path)
     
-    result = runner.invoke(app, ["--input", str(image_path), "--out", str(out_path)])
+    result = runner.invoke(app, ["run", "--input", str(image_path), "--out", str(out_path)])
     
     assert result.exit_code == 0
     
@@ -198,3 +198,73 @@ def test_smoke_us06_minimal_artifacts(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
+
+
+@patch("hsi_pipeline.cli.rgb_to_hsi")
+def test_metrics_command_success(mock_rgb_to_hsi):
+    """Test metrics command with valid metrics.json."""
+    import shutil
+    
+    mock_rgb_to_hsi.return_value = np.zeros((64, 64, 31), dtype=np.float32)
+    
+    image_path = Path("tests/test_images/01.bmp").resolve()
+    out_path = Path("tests/test_out_metrics_cmd").resolve()
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+    
+    # First generate metrics
+    result = runner.invoke(app, ["run", "--input", str(image_path), "--out", str(out_path)])
+    assert result.exit_code == 0
+    
+    # Now read metrics
+    result = runner.invoke(app, ["metrics", "--from", str(out_path)])
+    
+    assert result.exit_code == 0
+    assert "General Stats" in result.stdout
+    assert "Metrics loaded successfully" in result.stdout
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+
+
+def test_metrics_command_missing_dir():
+    """Test metrics command with non-existent directory."""
+    result = runner.invoke(app, ["metrics", "--from", "nonexistent_dir_12345"])
+    
+    assert result.exit_code != 0
+    assert "Directory not found" in result.stdout
+
+
+def test_metrics_command_missing_file():
+    """Test metrics command with directory but no metrics.json."""
+    import tempfile
+    
+    temp_dir = Path(tempfile.mkdtemp())
+    
+    result = runner.invoke(app, ["metrics", "--from", str(temp_dir)])
+    
+    assert result.exit_code != 0
+    assert "metrics.json not found" in result.stdout
+    
+    import shutil
+    shutil.rmtree(temp_dir)
+
+
+def test_metrics_command_corrupt_json():
+    """Test metrics command with corrupt JSON."""
+    import tempfile
+    import shutil
+    
+    temp_dir = Path(tempfile.mkdtemp())
+    metrics_path = temp_dir / "metrics.json"
+    
+    with open(metrics_path, "w") as f:
+        f.write("{invalid json")
+    
+    result = runner.invoke(app, ["metrics", "--from", str(temp_dir)])
+    
+    assert result.exit_code != 0
+    assert "corrupt" in result.stdout.lower() or "invalid" in result.stdout.lower()
+    
+    shutil.rmtree(temp_dir)
