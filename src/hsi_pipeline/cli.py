@@ -51,6 +51,15 @@ def run(
         "--no-ensemble",
         help="Disable model ensembling (faster but potentially less accurate)."
     ),
+    roi_mask: Optional[Path] = typer.Option(
+        None,
+        "--roi-mask", "-r",
+        help="Path to ROI mask image for separability calculation",
+        exists=True,
+        file_okay=True,
+        readable=True,
+        resolve_path=True
+    ),
 ):
     """Run the full HSI processing pipeline."""
     import cv2
@@ -109,13 +118,57 @@ def run(
 
         exporter.export_array("hsi_raw", hsi)
 
+        # ROI processing
+        roi_result = None
+        raw_separability = None
+        
+        if roi_mask is not None:
+            from .roi.loader import load_roi_mask, ROILoadError, ROIValidationError
+            from .roi.separability import calculate_separability
+            
+            console.print(f"Loading ROI mask: {roi_mask}")
+            try:
+                roi_result = load_roi_mask(roi_mask, fit_result.original_shape[:2])
+                
+                for warning in roi_result.warnings:
+                    console.print(f"[yellow]ROI Warning:[/yellow] {warning}")
+                
+                console.print(f"  ROI coverage: {roi_result.coverage:.1%}")
+                
+                console.print("Calculating separability...")
+                raw_separability = calculate_separability(hsi, roi_result.mask)
+                
+                if raw_separability is not None:
+                    console.print(f"  Raw separability: {raw_separability:.4f}")
+                else:
+                    console.print("  Raw separability: [yellow]NA[/yellow] (empty or full ROI)")
+                    
+            except ROILoadError as e:
+                console.print(f"[red]ROI Load Error:[/red] {e}")
+                console.print("[yellow]Suggestion:[/yellow] Check that the mask file exists and is a valid image.")
+                raise typer.Exit(1)
+            except ROIValidationError as e:
+                console.print(f"[red]ROI Validation Error:[/red] {e}")
+                console.print("[yellow]Suggestion:[/yellow] Ensure mask dimensions match input image.")
+                raise typer.Exit(1)
+        else:
+            console.print("[dim]ROI not provided → separability omitted[/dim]")
+
         end_time = time.perf_counter()
         duration = end_time - start_time
 
+        # Export metrics with ROI data
+        roi_extra = {}
+        if roi_result is not None:
+            roi_extra["raw_separability"] = raw_separability
+            roi_extra["roi_coverage"] = roi_result.coverage
+            roi_extra["roi_mask_path"] = roi_result.path
+        
         exporter.export_metrics(
             hsi_shape=hsi.shape,
             execution_time=duration,
             ensemble_enabled=use_ensemble,
+            extra=roi_extra if roi_extra else None,
         )
 
         fitting_info = {
@@ -125,12 +178,26 @@ def run(
             "input_shape_original": list(fit_result.original_shape),
             "input_shape_fitted": list(fit_result.fitted_shape),
         }
+        
+        run_config_extra = {
+            "ensemble_enabled": use_ensemble,
+            "hsi_shape": list(hsi.shape)
+        }
+        
+        if roi_result is not None:
+            run_config_extra["roi"] = {
+                "mask_path": roi_result.path,
+                "policy": "fail_on_invalid",
+                "binarize_threshold": 127,
+                "coverage": roi_result.coverage,
+            }
+        
         exporter.export_run_config(
             input_path=str(input),
             config_path=str(config),
             fitting_info=fitting_info,
             pipeline_version=PIPELINE_VERSION,
-            extra={"ensemble_enabled": use_ensemble, "hsi_shape": list(hsi.shape)},
+            extra=run_config_extra,
         )
 
     except NotADirectoryError as e:
