@@ -3,29 +3,23 @@ import numpy as np
 from typer.testing import CliRunner
 from pathlib import Path
 from hsi_pipeline.cli import app
-
 runner = CliRunner()
-
 def test_app_info():
     """Test that the app help command works."""
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "Usage" in result.stdout or "Options" in result.stdout
-
 @patch("hsi_pipeline.cli.rgb_to_hsi")
 def test_process_image_success(mock_rgb_to_hsi):
     """Test processing a valid image."""
     mock_rgb_to_hsi.return_value = np.zeros((32, 32, 31), dtype=np.float32)
-
     image_path = Path("tests/test_images/01.bmp").resolve()
     assert image_path.exists(), "Test image 01.bmp not found"
-
     result = runner.invoke(app, ["run", "--input", str(image_path)])
     
     assert result.exit_code == 0
     assert "Converting RGB" in result.stdout
     assert "Pipeline finished successfully" in result.stdout
-
 def test_process_image_invalid():
     """Test processing an invalid image file (corrupt/text)."""
     image_path = Path("tests/test_images/fake.png").resolve()
@@ -35,33 +29,27 @@ def test_process_image_invalid():
     
     assert result.exit_code == 1
     assert "Integrity Error" in result.stdout
-
 def test_process_image_not_found():
     """Test processing a non existent image."""
     result = runner.invoke(app, ["run", "--input", "non_existent.jpg"])
     
     assert result.exit_code != 0
-
 def test_run_no_args():
     """Test running without arguments. Should fail as input is required."""
     result = runner.invoke(app, ["run"])
     assert result.exit_code != 0
     assert result.exit_code == 2
-
 @patch("hsi_pipeline.cli.rgb_to_hsi")
 def test_process_image_implicit_out(mock_rgb_to_hsi):
     """Test processing a valid image without specifying output directory."""
     mock_rgb_to_hsi.return_value = np.zeros((32, 32, 31), dtype=np.float32)
-
     image_path = Path("tests/test_images/01.bmp").resolve()
     assert image_path.exists(), "Test image 01.bmp not found"
-
     expected_out = image_path.parent / "output"
     
     import shutil
     if expected_out.exists():
         shutil.rmtree(expected_out)
-
     result = runner.invoke(app, ["run", "--input", str(image_path)])
     
     if result.exit_code != 0:
@@ -70,10 +58,8 @@ def test_process_image_implicit_out(mock_rgb_to_hsi):
     assert result.exit_code == 0
     assert expected_out.exists()
     assert (expected_out / "hsi_raw_full.npz").exists()
-
     if expected_out.exists():
         shutil.rmtree(expected_out)
-
 def test_process_image_really_corrupt():
     """Test processing a file with jpg extension but corrupt content."""
     image_path = Path("tests/test_images/corrupt.jpg").resolve()
@@ -83,7 +69,6 @@ def test_process_image_really_corrupt():
     
     assert result.exit_code != 0
     assert "Integrity Error" in result.stdout or "Error" in result.stdout
-
 @patch("hsi_pipeline.cli.rgb_to_hsi")
 def test_process_image_tiny(mock_rgb_to_hsi):
     """Test processing an image that is too small (e.g. 1x1) - should be padded."""
@@ -96,7 +81,6 @@ def test_process_image_tiny(mock_rgb_to_hsi):
     
     assert result.exit_code == 0
     assert "Fitted shape" in result.stdout
-
 def test_process_image_text_format():
     """Test processing a file with unsupported extension/format (txt)."""
     image_path = Path("tests/test_images/plain.txt").resolve()
@@ -106,8 +90,6 @@ def test_process_image_text_format():
     
     assert result.exit_code != 0
     assert "Integrity Error" in result.stdout or "Error" in result.stdout
-
-
 @patch("hsi_pipeline.cli.rgb_to_hsi")
 def test_metadata_written(mock_rgb_to_hsi):
     """Test that run_config.json metadata is written with fitting info."""
@@ -139,8 +121,6 @@ def test_metadata_written(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-
-
 @patch("hsi_pipeline.cli.rgb_to_hsi")
 def test_smoke_oddsize_image(mock_rgb_to_hsi):
     """Smoke test: process odd-sized image end-to-end."""
@@ -171,8 +151,6 @@ def test_smoke_oddsize_image(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-
-
 @patch("hsi_pipeline.cli.rgb_to_hsi")
 def test_smoke_us06_minimal_artifacts(mock_rgb_to_hsi):
     """US-06: Verify minimal artifact structure is exported."""
@@ -198,8 +176,6 @@ def test_smoke_us06_minimal_artifacts(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-
-
 @patch("hsi_pipeline.cli.rgb_to_hsi")
 def test_metrics_command_success(mock_rgb_to_hsi):
     """Test metrics command with valid metrics.json."""
@@ -226,16 +202,12 @@ def test_metrics_command_success(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-
-
 def test_metrics_command_missing_dir():
     """Test metrics command with non-existent directory."""
     result = runner.invoke(app, ["metrics", "--from", "nonexistent_dir_12345"])
     
     assert result.exit_code != 0
     assert "Directory not found" in result.stdout
-
-
 def test_metrics_command_missing_file():
     """Test metrics command with directory but no metrics.json."""
     import tempfile
@@ -249,8 +221,6 @@ def test_metrics_command_missing_file():
     
     import shutil
     shutil.rmtree(temp_dir)
-
-
 def test_metrics_command_corrupt_json():
     """Test metrics command with corrupt JSON."""
     import tempfile
@@ -268,8 +238,6 @@ def test_metrics_command_corrupt_json():
     assert "corrupt" in result.stdout.lower() or "invalid" in result.stdout.lower()
     
     shutil.rmtree(temp_dir)
-
-
 @patch("hsi_pipeline.cli.rgb_to_hsi")
 def test_roi_mask_success(mock_rgb_to_hsi):
     """Test run with valid ROI mask includes separability in metrics."""
@@ -302,8 +270,6 @@ def test_roi_mask_success(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-
-
 @patch("hsi_pipeline.cli.rgb_to_hsi")
 def test_no_roi_omits_separability(mock_rgb_to_hsi):
     """Test run without ROI mask omits separability from metrics."""
@@ -334,8 +300,6 @@ def test_no_roi_omits_separability(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-
-
 def test_invalid_roi_fails():
     """Test run with invalid ROI mask fails with error."""
     import tempfile
@@ -360,3 +324,78 @@ def test_invalid_roi_fails():
     
     import shutil
     shutil.rmtree(temp_dir)
+@patch("hsi_pipeline.cli.rgb_to_hsi")
+def test_upscale_success(mock_rgb_to_hsi):
+    """Test upscaling generates both baseline and improved artifacts."""
+    import shutil
+    import json
+    
+    mock_rgb_to_hsi.return_value = np.zeros((64, 64, 31), dtype=np.float32)
+    
+    image_path = Path("tests/test_images/01.bmp").resolve()
+    out_path = Path("tests/test_out_upscale").resolve()
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+    
+    result = runner.invoke(app, [
+        "run",
+        "--input", str(image_path),
+        "--upscale-factor", "2",
+        "--out", str(out_path)
+    ])
+    
+    assert result.exit_code == 0, f"Failed with: {result.stdout}"
+    
+    # Check artifacts exist
+    assert (out_path / "hsi_upscaled_baseline.npz").exists(), "Baseline missing"
+    assert (out_path / "hsi_upscaled_improved.npz").exists(), "Improved missing"
+    
+    # Check metrics.json contains upscaling info
+    with open(out_path / "metrics.json") as f:
+        metrics = json.load(f)
+    
+    assert "upscale_factor" in metrics
+    assert metrics["upscale_factor"] == 2
+    assert "upscaled_size" in metrics
+    
+    # Verify shapes
+    baseline = np.load(out_path / "hsi_upscaled_baseline.npz")["data"]
+    assert baseline.shape == (128, 128, 31)  # 64*2 = 128
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+@patch("hsi_pipeline.cli.rgb_to_hsi")
+def test_no_upscale_omits_artifacts(mock_rgb_to_hsi):
+    """Test without upscale flag, no upscaled artifacts are created."""
+    import shutil
+    import json
+    
+    mock_rgb_to_hsi.return_value = np.zeros((64, 64, 31), dtype=np.float32)
+    
+    image_path = Path("tests/test_images/01.bmp").resolve()
+    out_path = Path("tests/test_out_no_upscale").resolve()
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+    
+    result = runner.invoke(app, [
+        "run",
+        "--input", str(image_path),
+        "--out", str(out_path)
+    ])
+    
+    assert result.exit_code == 0
+    
+    # Upscaled artifacts should NOT exist
+    assert not (out_path / "hsi_upscaled_baseline.npz").exists()
+    assert not (out_path / "hsi_upscaled_improved.npz").exists()
+    
+    # Metrics should not contain upscaling info
+    with open(out_path / "metrics.json") as f:
+        metrics = json.load(f)
+    
+    assert "upscale_factor" not in metrics
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)

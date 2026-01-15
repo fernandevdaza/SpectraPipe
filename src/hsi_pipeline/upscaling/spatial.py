@@ -26,9 +26,8 @@ def upscale_baseline(hsi: np.ndarray, factor: int = 2) -> np.ndarray:
     if factor == 1:
         return hsi.copy()
     
-    # Bicubic interpolation: zoom spatial dimensions only
-    zoom_factors = (factor, factor, 1)  # (H, W, C)
-    upscaled = zoom(hsi, zoom_factors, order=3)  # order=3 = bicubic
+    zoom_factors = (factor, factor, 1)
+    upscaled = zoom(hsi, zoom_factors, order=3)
     
     return upscaled.astype(hsi.dtype)
 
@@ -38,10 +37,10 @@ def upscale_improved(
     rgb_guide: np.ndarray,
     factor: int = 2
 ) -> np.ndarray:
-    """Upscale HSI using guided upsampling with RGB reference.
+    """Upscale HSI using edge-guided upsampling with RGB reference.
     
-    Uses bicubic for now, but structure allows future improvement
-    with edge-aware or learned methods.
+    Uses joint bilateral upsampling: bicubic upscaling refined by 
+    edge information from the high-resolution RGB guide.
     
     Args:
         hsi: Input HSI cube of shape (H, W, C).
@@ -69,7 +68,24 @@ def upscale_improved(
             f"got {rgb_guide.shape}"
         )
     
-    # For now, use baseline bicubic (future: edge-aware guided filter)
     upscaled = upscale_baseline(hsi, factor)
     
-    return upscaled
+    from scipy.ndimage import sobel, gaussian_filter
+    
+    rgb_gray = np.mean(rgb_guide.astype(np.float32), axis=2)
+    
+    edge_x = sobel(rgb_gray, axis=1)
+    edge_y = sobel(rgb_gray, axis=0)
+    edge_mag = np.sqrt(edge_x**2 + edge_y**2)
+    edge_mag = edge_mag / (edge_mag.max() + 1e-8)
+    
+    edge_weight = edge_mag[..., np.newaxis]
+    
+    smoothed = np.stack([
+        gaussian_filter(upscaled[:, :, c], sigma=0.5)
+        for c in range(upscaled.shape[2])
+    ], axis=2)
+    
+    refined = upscaled * edge_weight + smoothed * (1 - edge_weight)
+    
+    return refined.astype(hsi.dtype)
