@@ -60,6 +60,13 @@ def run(
         readable=True,
         resolve_path=True
     ),
+    upscale_factor: Optional[int] = typer.Option(
+        None,
+        "--upscale-factor", "-u",
+        help="Upscaling factor (e.g., 2 for 2x upscaling). Generates baseline and improved upscaled outputs.",
+        min=2,
+        max=8
+    ),
 ):
     """Run the full HSI processing pipeline."""
     import cv2
@@ -118,7 +125,6 @@ def run(
 
         exporter.export_array("hsi_raw", hsi)
 
-        # ROI processing
         roi_result = None
         raw_separability = None
         
@@ -157,18 +163,54 @@ def run(
         end_time = time.perf_counter()
         duration = end_time - start_time
 
-        # Export metrics with ROI data
         roi_extra = {}
         if roi_result is not None:
             roi_extra["raw_separability"] = raw_separability
             roi_extra["roi_coverage"] = roi_result.coverage
             roi_extra["roi_mask_path"] = roi_result.path
         
+        upscaling_extra = {}
+        if upscale_factor is not None:
+            from .upscaling.spatial import upscale_baseline, upscale_improved
+            
+            console.print(f"Upscaling HSI by factor {upscale_factor}x...")
+            
+            console.print("  Running baseline (bicubic per-band)...")
+            hsi_baseline = upscale_baseline(hsi, factor=upscale_factor)
+            exporter.export_array("hsi_upscaled_baseline", hsi_baseline)
+            console.print(f"    Output shape: {hsi_baseline.shape}")
+            
+            console.print("  Running improved (edge-guided)...")
+            from scipy.ndimage import zoom
+            import cv2 as cv2_resize
+            
+            rgb_matched = cv2_resize.resize(rgb, (hsi.shape[1], hsi.shape[0]))
+            rgb_upscaled = zoom(rgb_matched, (upscale_factor, upscale_factor, 1), order=3)
+            
+            try:
+                hsi_improved = upscale_improved(hsi, rgb_upscaled, factor=upscale_factor)
+                exporter.export_array("hsi_upscaled_improved", hsi_improved)
+                console.print(f"    Output shape: {hsi_improved.shape}")
+            except ValueError as e:
+                console.print(f"[red]Upscaling Error:[/red] {e}")
+                console.print("[yellow]Suggestion:[/yellow] Ensure RGB guide dimensions match expected upscaled size.")
+                raise typer.Exit(1)
+            
+            upscaling_extra["upscale_factor"] = upscale_factor
+            upscaling_extra["upscaled_size"] = list(hsi_baseline.shape[:2])
+            upscaling_extra["upscaling_methods"] = ["baseline_bicubic", "improved_edge_guided"]
+            
+            console.print(f"  ✓ Upscaling complete: {hsi.shape[:2]} → {hsi_baseline.shape[:2]}")
+        else:
+            console.print("[dim]Upscaling not requested[/dim]")
+        
+        metrics_extra = {**roi_extra, **upscaling_extra}
+        
         exporter.export_metrics(
             hsi_shape=hsi.shape,
             execution_time=duration,
             ensemble_enabled=use_ensemble,
-            extra=roi_extra if roi_extra else None,
+            extra=metrics_extra if metrics_extra else None,
         )
 
         fitting_info = {
@@ -190,6 +232,14 @@ def run(
                 "policy": "fail_on_invalid",
                 "binarize_threshold": 127,
                 "coverage": roi_result.coverage,
+            }
+        
+        if upscale_factor is not None:
+            run_config_extra["upscaling"] = {
+                "enabled": True,
+                "factor": upscale_factor,
+                "methods": ["baseline_bicubic", "improved_edge_guided"],
+                "upscaled_size": list(hsi_baseline.shape[:2]),
             }
         
         exporter.export_run_config(
@@ -261,7 +311,6 @@ def metrics(
     from .metrics.reader import read_metrics, MetricsNotFoundError, MetricsCorruptError
     from .metrics.formatter import format_metrics, print_warnings
     
-    # Validate directory
     if not from_dir.exists():
         console.print(f"[red]Error:[/red] Directory not found: {from_dir}")
         console.print("[yellow]Suggestion:[/yellow] Check the path and try again.")
@@ -285,11 +334,9 @@ def metrics(
         console.print("[yellow]Suggestion:[/yellow] Regenerate metrics with `spectrapipe run --input <image> --out <dir>`.")
         raise typer.Exit(1)
     
-    # Print warnings if any
     if result.warnings:
         print_warnings(result.warnings, console)
     
-    # Print formatted metrics
     format_metrics(result.data, console)
     
     console.print("[green]✓[/green] Metrics loaded successfully.")
