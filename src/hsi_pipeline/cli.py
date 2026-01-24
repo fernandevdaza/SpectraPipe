@@ -8,6 +8,7 @@ from .preprocess.input_fitting import fit_input, unfit_output
 from .export.manager import ExportManager
 import typer
 from rich.console import Console
+import numpy as np
 
 PIPELINE_VERSION = "0.1.0"
 
@@ -141,8 +142,18 @@ def run(
                 
                 console.print(f"  ROI coverage: {roi_result.coverage:.1%}")
                 
+                # Resize mask to match HSI dimensions if needed
+                roi_mask_hsi = roi_result.mask
+                if roi_result.mask.shape != hsi.shape[:2]:
+                    import cv2 as cv2_sep
+                    roi_mask_hsi = cv2_sep.resize(
+                        roi_result.mask.astype(np.uint8),
+                        (hsi.shape[1], hsi.shape[0]),
+                        interpolation=cv2_sep.INTER_NEAREST
+                    ).astype(bool)
+                
                 console.print("Calculating separability...")
-                raw_separability = calculate_separability(hsi, roi_result.mask)
+                raw_separability = calculate_separability(hsi, roi_mask_hsi)
                 
                 if raw_separability is not None:
                     console.print(f"  Raw separability: {raw_separability:.4f}")
@@ -159,6 +170,46 @@ def run(
                 raise typer.Exit(1)
         else:
             console.print("[dim]ROI not provided → separability omitted[/dim]")
+
+        clean_result = None
+        clean_metrics_data = None
+        
+        if roi_result is not None and roi_result.coverage > 0 and roi_result.coverage < 1:
+            from .postprocess.background_suppression import suppress_background
+            from .postprocess.clean_metrics import calculate_clean_metrics
+            import cv2 as cv2_clean
+            
+            console.print("Generating clean HSI (background suppression)...")
+            
+            # Resize mask to match HSI dimensions if needed
+            roi_mask_for_clean = roi_result.mask
+            if roi_result.mask.shape != hsi.shape[:2]:
+                roi_mask_for_clean = cv2_clean.resize(
+                    roi_result.mask.astype(np.uint8),
+                    (hsi.shape[1], hsi.shape[0]),
+                    interpolation=cv2_clean.INTER_NEAREST
+                ).astype(bool)
+            
+            clean_result = suppress_background(hsi, roi_mask_for_clean, policy="subtract_mean")
+            
+            if clean_result is not None:
+                exporter.export_array("hsi_clean", clean_result.hsi_clean)
+                console.print(f"  Policy: {clean_result.policy}")
+                console.print(f"  ✓ Clean HSI generated: {clean_result.hsi_clean.shape}")
+                
+                console.print("Calculating clean metrics...")
+                clean_metrics_data = calculate_clean_metrics(hsi, clean_result.hsi_clean, roi_mask_for_clean)
+                
+                if clean_metrics_data:
+                    console.print(f"  Clean separability: {clean_metrics_data['clean_separability']:.4f}")
+                    console.print(f"  Raw-Clean SAM: {clean_metrics_data['raw_clean_sam']:.4f}")
+                    console.print(f"  Raw-Clean RMSE: {clean_metrics_data['raw_clean_rmse']:.4f}")
+            else:
+                console.print("[yellow]Clean skipped:[/yellow] Could not compute (empty/full ROI)")
+        elif roi_result is not None:
+            console.print("[yellow]Clean skipped:[/yellow] ROI is empty or full (100%)")
+        else:
+            console.print("[dim]Clean skipped (no ROI mask)[/dim]")
 
         end_time = time.perf_counter()
         duration = end_time - start_time
@@ -206,6 +257,9 @@ def run(
         
         metrics_extra = {**roi_extra, **upscaling_extra}
         
+        if clean_metrics_data:
+            metrics_extra.update(clean_metrics_data)
+        
         exporter.export_metrics(
             hsi_shape=hsi.shape,
             execution_time=duration,
@@ -232,6 +286,12 @@ def run(
                 "policy": "fail_on_invalid",
                 "binarize_threshold": 127,
                 "coverage": roi_result.coverage,
+            }
+        
+        if clean_result is not None:
+            run_config_extra["clean"] = {
+                "enabled": True,
+                "policy": clean_result.policy,
             }
         
         if upscale_factor is not None:
