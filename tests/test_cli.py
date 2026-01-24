@@ -399,3 +399,91 @@ def test_no_upscale_omits_artifacts(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
+
+
+@patch("hsi_pipeline.cli.rgb_to_hsi")
+def test_clean_generated_with_roi(mock_rgb_to_hsi):
+    """Test clean HSI generated when ROI is provided with partial coverage."""
+    import shutil
+    import json
+    from PIL import Image
+    
+    mock_rgb_to_hsi.return_value = np.ones((64, 64, 31), dtype=np.float32)
+    
+    image_path = Path("tests/test_images/01.bmp").resolve()
+    out_path = Path("tests/test_out_clean").resolve()
+    
+    # Create a partial ROI mask (50% coverage)
+    mask = np.zeros((512, 512), dtype=np.uint8)
+    mask[:256, :] = 255
+    mask_path = out_path.parent / "test_clean_mask.png"
+    Image.fromarray(mask).save(mask_path)
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+    
+    result = runner.invoke(app, [
+        "run",
+        "--input", str(image_path),
+        "--roi-mask", str(mask_path),
+        "--out", str(out_path)
+    ])
+    
+    assert result.exit_code == 0, f"Failed: {result.stdout}"
+    
+    # Check clean artifact exists
+    assert (out_path / "hsi_clean_full.npz").exists(), "hsi_clean_full.npz not found"
+    
+    # Check metrics contain clean metrics
+    with open(out_path / "metrics.json") as f:
+        metrics = json.load(f)
+    
+    assert "clean_separability" in metrics
+    assert "raw_clean_sam" in metrics
+    assert "raw_clean_rmse" in metrics
+    
+    # Check logs
+    assert "Clean HSI generated" in result.stdout or "clean" in result.stdout.lower()
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+    if mask_path.exists():
+        mask_path.unlink()
+
+
+@patch("hsi_pipeline.cli.rgb_to_hsi")
+def test_clean_skipped_without_roi(mock_rgb_to_hsi):
+    """Test clean HSI is skipped when no ROI is provided."""
+    import shutil
+    import json
+    
+    mock_rgb_to_hsi.return_value = np.ones((64, 64, 31), dtype=np.float32)
+    
+    image_path = Path("tests/test_images/01.bmp").resolve()
+    out_path = Path("tests/test_out_no_clean").resolve()
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+    
+    result = runner.invoke(app, [
+        "run",
+        "--input", str(image_path),
+        "--out", str(out_path)
+    ])
+    
+    assert result.exit_code == 0
+    
+    # Clean artifact should NOT exist
+    assert not (out_path / "hsi_clean_full.npz").exists()
+    
+    # Metrics should not have clean metrics
+    with open(out_path / "metrics.json") as f:
+        metrics = json.load(f)
+    
+    assert "clean_separability" not in metrics
+    
+    # Check logs indicate skipped
+    assert "Clean skipped" in result.stdout or "no ROI" in result.stdout.lower()
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
