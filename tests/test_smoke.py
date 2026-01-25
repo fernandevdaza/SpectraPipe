@@ -15,7 +15,7 @@ from hsi_pipeline.cli import app
 runner = CliRunner()
 
 
-@patch("hsi_pipeline.cli.rgb_to_hsi")
+@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
 def test_cli_run_smoke(mock_rgb_to_hsi):
     """Smoke test: CLI run produces expected artifacts.
     

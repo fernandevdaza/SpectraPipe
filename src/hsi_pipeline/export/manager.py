@@ -98,6 +98,17 @@ class ExportManager:
         if path.exists() and not self.overwrite:
             raise FileExistsError(f"Artifact already exists: {path}")
         
+        # Validate for NaN/inf
+        if np.issubdtype(data.dtype, np.floating):
+            nan_count = np.isnan(data).sum()
+            inf_count = np.isinf(data).sum()
+            if nan_count > 0 or inf_count > 0:
+                import warnings
+                warnings.warn(
+                    f"Array '{artifact_key}' contains {nan_count} NaN and {inf_count} Inf values",
+                    RuntimeWarning
+                )
+        
         if self.format == "npz":
             np.savez_compressed(path, data=data)
         else:
