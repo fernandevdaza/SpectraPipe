@@ -1,0 +1,1 @@
+"""Spectral signature extraction module."""

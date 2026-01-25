@@ -558,3 +558,99 @@ def test_dataset_command_invalid_manifest():
     
     import os
     os.unlink(manifest_path)
+
+
+@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+def test_spectra_pixel_extraction(mock_rgb_to_hsi):
+    """Test spectra command extracts pixel signature."""
+    import shutil
+    import json
+    
+    mock_rgb_to_hsi.return_value = np.ones((64, 64, 31), dtype=np.float32)
+    
+    image_path = Path("tests/test_images/01.bmp").resolve()
+    out_path = Path("tests/test_out_spectra").resolve()
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+    
+    # First generate the HSI
+    result = runner.invoke(app, [
+        "run",
+        "--input", str(image_path),
+        "--out", str(out_path)
+    ])
+    assert result.exit_code == 0, f"Run failed: {result.stdout}"
+    
+    # Then extract spectra
+    result = runner.invoke(app, [
+        "spectra",
+        "--from", str(out_path),
+        "--artifact", "raw",
+        "--pixel", "10,20",
+        "--export", "json"
+    ])
+    
+    assert result.exit_code == 0, f"Spectra failed: {result.stdout}"
+    
+    # Check export file exists
+    assert (out_path / "spectra_raw_pixel_10_20.json").exists()
+    
+    # Check JSON content
+    with open(out_path / "spectra_raw_pixel_10_20.json") as f:
+        data = json.load(f)
+    
+    assert data["source"] == "pixel"
+    assert data["artifact"] == "raw"
+    assert data["bands"] == 31
+    assert len(data["values"]) == 31
+    
+    if out_path.exists():
+        shutil.rmtree(out_path)
+
+
+def test_spectra_pixel_out_of_range():
+    """Test spectra command fails for out-of-range pixel."""
+    import shutil
+    import tempfile
+    
+    out_path = Path(tempfile.mkdtemp())
+    
+    # Create a small HSI
+    hsi = np.ones((32, 32, 31), dtype=np.float32)
+    np.savez_compressed(out_path / "hsi_raw_full.npz", data=hsi)
+    
+    result = runner.invoke(app, [
+        "spectra",
+        "--from", str(out_path),
+        "--artifact", "raw",
+        "--pixel", "100,100",  # Out of range for 32x32
+        "--export", "json"
+    ])
+    
+    assert result.exit_code != 0
+    assert "out of range" in result.stdout.lower()
+    assert "Valid range" in result.stdout
+    
+    shutil.rmtree(out_path)
+
+
+def test_spectra_artifact_not_found():
+    """Test spectra command fails for missing artifact."""
+    import tempfile
+    import shutil
+    
+    out_path = Path(tempfile.mkdtemp())
+    
+    result = runner.invoke(app, [
+        "spectra",
+        "--from", str(out_path),
+        "--artifact", "clean",  # Doesn't exist
+        "--pixel", "10,10",
+        "--export", "json"
+    ])
+    
+    assert result.exit_code != 0
+    assert "not found" in result.stdout.lower() or "Error" in result.stdout
+    
+    shutil.rmtree(out_path)
