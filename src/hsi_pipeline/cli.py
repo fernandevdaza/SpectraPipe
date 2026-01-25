@@ -402,6 +402,232 @@ def metrics(
     console.print("[green]✓[/green] Metrics loaded successfully.")
 
 
+@app.command("dataset")
+def dataset_run(
+    manifest: Path = typer.Option(
+        ...,
+        "--manifest", "-m",
+        help="Path to dataset manifest file (YAML or JSON)",
+        exists=True,
+        file_okay=True,
+        readable=True,
+        resolve_path=True
+    ),
+    out: Path = typer.Option(
+        ...,
+        "--out", "-o",
+        help="Path to output directory for all samples",
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True
+    ),
+    config: Path = typer.Option(
+        "configs/defaults.yaml",
+        "--config", "-c",
+        help="Path to configuration YAML file",
+        exists=True,
+        file_okay=True,
+        readable=True,
+        resolve_path=True
+    ),
+    on_error: str = typer.Option(
+        "continue",
+        "--on-error",
+        help="Policy on sample failure: 'continue' or 'abort'",
+    ),
+    no_ensemble: bool = typer.Option(
+        False,
+        "--no-ensemble",
+        help="Disable model ensembling",
+    ),
+    upscale_factor: Optional[int] = typer.Option(
+        None,
+        "--upscale-factor", "-u",
+        help="Upscaling factor for all samples",
+        min=2,
+        max=8
+    ),
+):
+    """Run the pipeline on a dataset defined by a manifest."""
+    from .manifest.parser import (
+        parse_manifest, ManifestNotFoundError, ManifestParseError, ManifestValidationError
+    )
+    from .dataset.runner import run_dataset, write_dataset_report, OnErrorPolicy
+    
+    console.print(f"[bold]SpectraPipe Dataset Processing[/bold] v{PIPELINE_VERSION}")
+    console.print(f"Manifest: {manifest}")
+    
+    if on_error not in ("continue", "abort"):
+        console.print(f"[red]Error:[/red] --on-error must be 'continue' or 'abort', got '{on_error}'")
+        raise typer.Exit(1)
+    
+    policy = OnErrorPolicy.CONTINUE if on_error == "continue" else OnErrorPolicy.ABORT
+    
+    try:
+        parsed_manifest = parse_manifest(manifest)
+    except ManifestNotFoundError as e:
+        console.print(f"[red]Manifest Error:[/red] {e}")
+        console.print("[yellow]Suggestion:[/yellow] Check the manifest file path.")
+        raise typer.Exit(1)
+    except ManifestParseError as e:
+        console.print(f"[red]Parse Error:[/red] {e}")
+        console.print("[yellow]Suggestion:[/yellow] Fix the YAML/JSON syntax error.")
+        raise typer.Exit(1)
+    except ManifestValidationError as e:
+        console.print(f"[red]Validation Error:[/red] {e}")
+        console.print("[yellow]Suggestion:[/yellow] Check manifest schema requirements.")
+        raise typer.Exit(1)
+    
+    console.print(f"Root: {parsed_manifest.root}")
+    console.print(f"Samples: {len(parsed_manifest.samples)}")
+    console.print(f"On-error policy: {on_error}")
+    console.print("")
+    
+    cfg = load_config(config)
+    use_ensemble = not no_ensemble
+    
+    def process_sample(sample, sample_out):
+        """Process a single sample."""
+        import cv2
+        from PIL import Image, UnidentifiedImageError
+        
+        image_path = sample.image_resolved
+        if not image_path or not image_path.exists():
+            raise FileNotFoundError(f"Image not found: {sample.image}")
+        
+        try:
+            rgb = np.array(Image.open(image_path).convert('RGB'))
+        except UnidentifiedImageError:
+            raise ValueError(f"Invalid image format: {image_path}")
+        
+        fit_result = fit_input(
+            rgb,
+            multiple=cfg.fitting.multiple,
+            policy=cfg.fitting.policy
+        )
+        rgb_fitted = fit_result.fitted
+        
+        hsi = rgb_to_hsi(rgb_fitted, cfg, ensemble_override=use_ensemble)
+        
+        exporter = ExportManager(sample_out)
+        exporter.export_array("hsi_raw", hsi)
+        
+        roi_mask_for_metrics = None
+        raw_separability = None
+        clean_metrics_data = None
+        clean_result_obj = None
+        
+        if sample.roi_mask_resolved:
+            roi_path = sample.roi_mask_resolved
+            if not roi_path.exists():
+                raise FileNotFoundError(f"ROI mask not found: {sample.roi_mask}")
+            
+            from .roi.loader import load_roi_mask
+            from .roi.separability import calculate_separability
+            
+            roi_result = load_roi_mask(roi_path, fit_result.original_shape[:2])
+            
+            roi_mask_for_metrics = roi_result.mask
+            if roi_result.mask.shape != hsi.shape[:2]:
+                roi_mask_for_metrics = cv2.resize(
+                    roi_result.mask.astype(np.uint8),
+                    (hsi.shape[1], hsi.shape[0]),
+                    interpolation=cv2.INTER_NEAREST
+                ).astype(bool)
+            
+            raw_separability = calculate_separability(hsi, roi_mask_for_metrics)
+            
+            if roi_result.coverage > 0 and roi_result.coverage < 1:
+                from .postprocess.background_suppression import suppress_background
+                from .postprocess.clean_metrics import calculate_clean_metrics
+                
+                clean_result_obj = suppress_background(hsi, roi_mask_for_metrics, policy="subtract_mean")
+                if clean_result_obj:
+                    exporter.export_array("hsi_clean", clean_result_obj.hsi_clean)
+                    clean_metrics_data = calculate_clean_metrics(hsi, clean_result_obj.hsi_clean, roi_mask_for_metrics)
+        
+        if upscale_factor:
+            from .upscaling.spatial import upscale_baseline, upscale_improved
+            from scipy.ndimage import zoom
+            
+            hsi_baseline = upscale_baseline(hsi, factor=upscale_factor)
+            exporter.export_array("hsi_upscaled_baseline", hsi_baseline)
+            
+            rgb_matched = cv2.resize(rgb, (hsi.shape[1], hsi.shape[0]))
+            rgb_upscaled = zoom(rgb_matched, (upscale_factor, upscale_factor, 1), order=3)
+            hsi_improved = upscale_improved(hsi, rgb_upscaled, factor=upscale_factor)
+            exporter.export_array("hsi_upscaled_improved", hsi_improved)
+        
+        metrics_extra = {}
+        if raw_separability is not None:
+            metrics_extra["raw_separability"] = raw_separability
+        if sample.roi_mask_resolved:
+            metrics_extra["roi_mask_path"] = str(sample.roi_mask_resolved)
+        if clean_metrics_data:
+            metrics_extra.update(clean_metrics_data)
+        if upscale_factor:
+            metrics_extra["upscale_factor"] = upscale_factor
+            metrics_extra["upscaled_size"] = [hsi.shape[0] * upscale_factor, hsi.shape[1] * upscale_factor]
+        
+        exporter.export_metrics(
+            hsi_shape=hsi.shape,
+            execution_time=0,
+            ensemble_enabled=use_ensemble,
+            extra=metrics_extra if metrics_extra else None
+        )
+        
+        run_config_data = {
+            "sample_id": sample.id,
+            "image_path": str(sample.image_resolved),
+            "fitting": {
+                "policy": fit_result.policy,
+                "input_shape_original": list(fit_result.original_shape),
+                "input_shape_fitted": list(fit_result.fitted_shape),
+            },
+            "ensemble_enabled": use_ensemble,
+        }
+        if sample.roi_mask_resolved:
+            run_config_data["roi_mask_path"] = str(sample.roi_mask_resolved)
+        if clean_result_obj:
+            run_config_data["clean"] = {"enabled": True, "policy": clean_result_obj.policy}
+        if upscale_factor:
+            run_config_data["upscaling"] = {"enabled": True, "factor": upscale_factor}
+        
+        exporter.export_run_config(
+            input_path=image_path,
+            config_path=config,
+            fitting_info=run_config_data.get("fitting", {}),
+            extra=run_config_data
+        )
+    
+    report = run_dataset(
+        manifest=parsed_manifest,
+        output_dir=out,
+        process_fn=process_sample,
+        on_error=policy,
+        console=console
+    )
+    
+    report_path = write_dataset_report(report, out)
+    
+    console.print("")
+    console.print("[bold]Dataset Processing Complete[/bold]")
+    console.print(f"  Total samples: {report.total_samples}")
+    console.print(f"  Processed OK:  [green]{report.processed_ok}[/green]")
+    console.print(f"  Failed:        [red]{report.failed}[/red]")
+    console.print(f"  Total time:    {report.total_time:.2f}s")
+    console.print(f"  Report:        {report_path}")
+    
+    if report.failed > 0:
+        console.print("")
+        console.print("[yellow]Failures:[/yellow]")
+        for failure in report.failures:
+            console.print(f"  - {failure['sample_id']}: {failure['reason']}")
+    
+    if report.failed > 0 and policy == OnErrorPolicy.ABORT:
+        raise typer.Exit(1)
+
+
 def main():
     app()
 

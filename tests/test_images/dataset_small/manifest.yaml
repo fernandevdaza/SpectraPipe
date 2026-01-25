@@ -1,0 +1,7 @@
+root: .
+samples:
+  - id: s01
+    image: rgb/s01.png
+  - id: s02
+    image: rgb/s02.png
+    roi_mask: roi/s02_mask.png

@@ -41,6 +41,9 @@ packages = [{include = "hsi_pipeline", from = "src"}]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "slow: marks tests as slow (run with '--slow')",
+]
 
 [dependency-groups]
 dev = [
