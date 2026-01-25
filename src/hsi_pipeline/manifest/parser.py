@@ -35,8 +35,13 @@ class Sample:
     image: str
     roi_mask: Optional[str] = None
     
+    # Annotation support (COCO/VOC)
+    annotation: Optional[str] = None  # Path to annotation file
+    annotation_type: Optional[str] = None  # 'voc' or 'coco'
+    
     image_resolved: Optional[Path] = field(default=None, repr=False)
     roi_mask_resolved: Optional[Path] = field(default=None, repr=False)
+    annotation_resolved: Optional[Path] = field(default=None, repr=False)
 
 
 @dataclass
@@ -163,12 +168,16 @@ def _parse_samples(samples_data: list, root: Path) -> List[Sample]:
         sample = Sample(
             id=str(item['id']),
             image=item['image'],
-            roi_mask=item.get('roi_mask')
+            roi_mask=item.get('roi_mask'),
+            annotation=item.get('annotation'),
+            annotation_type=item.get('annotation_type')
         )
         
         sample.image_resolved = _resolve_path(sample.image, root)
         if sample.roi_mask:
             sample.roi_mask_resolved = _resolve_path(sample.roi_mask, root)
+        if sample.annotation:
+            sample.annotation_resolved = _resolve_path(sample.annotation, root)
         
         samples.append(sample)
     
