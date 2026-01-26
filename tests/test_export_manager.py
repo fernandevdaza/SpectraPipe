@@ -59,8 +59,9 @@ class TestExportManager:
         assert path.exists()
         assert path.suffix == ".npz"
         
-        loaded = np.load(path)
-        np.testing.assert_array_almost_equal(loaded["data"], data)
+        loaded = np.load(path, allow_pickle=True)
+        # Schema v1 uses 'cube' key for HSI artifacts
+        np.testing.assert_array_almost_equal(loaded["cube"], data)
 
     def test_export_array_npy(self):
         """Should export array as NPY and be readable."""
@@ -164,8 +165,9 @@ class TestExportManager:
         exporter.export_array("hsi_raw", data2)
         
         path = exporter.get_path("hsi_raw")
-        loaded = np.load(path)
-        np.testing.assert_array_equal(loaded["data"], data2)
+        loaded = np.load(path, allow_pickle=True)
+        # Schema v1 uses 'cube' key
+        np.testing.assert_array_equal(loaded["cube"], data2)
 
     def test_cleanup_partial(self):
         """Should remove exported artifacts on cleanup."""

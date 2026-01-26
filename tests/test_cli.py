@@ -359,8 +359,9 @@ def test_upscale_success(mock_rgb_to_hsi):
     assert metrics["upscale_factor"] == 2
     assert "upscaled_size" in metrics
     
-    # Verify shapes
-    baseline = np.load(out_path / "hsi_upscaled_baseline.npz")["data"]
+    # Verify shapes (schema v1 uses 'cube' key)
+    loaded = np.load(out_path / "hsi_upscaled_baseline.npz", allow_pickle=True)
+    baseline = loaded["cube"] if "cube" in loaded else loaded["data"]
     assert baseline.shape == (128, 128, 31)  # 64*2 = 128
     
     if out_path.exists():

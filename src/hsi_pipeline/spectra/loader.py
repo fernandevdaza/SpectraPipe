@@ -67,8 +67,25 @@ def load_hsi_artifact(
     
     if npz_path.exists():
         try:
-            loaded = np.load(npz_path)
-            data = loaded["data"]
+            loaded = np.load(npz_path, allow_pickle=True)
+            
+            # NPZ Schema v1: use 'cube' key
+            if "cube" in loaded:
+                data = loaded["cube"]
+            # Legacy: use 'data' key
+            elif "data" in loaded:
+                import warnings
+                warnings.warn(
+                    f"Legacy NPZ detected: '{npz_path.name}' uses 'data' instead of 'cube'. "
+                    "Re-export to update to schema v1.",
+                    DeprecationWarning
+                )
+                data = loaded["data"]
+            else:
+                raise HSILoadError(
+                    f"Invalid NPZ: missing 'cube' or 'data' key. Found keys: {list(loaded.keys())}"
+                )
+            
             return LoadedHSI(
                 data=data,
                 path=npz_path,
@@ -76,6 +93,8 @@ def load_hsi_artifact(
                 shape=data.shape
             )
         except Exception as e:
+            if isinstance(e, HSILoadError):
+                raise
             raise HSILoadError(f"Failed to load NPZ: {e}")
     
     if npy_path.exists():
