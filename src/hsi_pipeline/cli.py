@@ -447,6 +447,11 @@ def dataset_run(
         min=2,
         max=8
     ),
+    on_annot_error: str = typer.Option(
+        "continue",
+        "--on-annot-error",
+        help="Policy on annotation parse failure: 'continue' or 'abort'",
+    ),
 ):
     """Run the pipeline on a dataset defined by a manifest."""
     from .manifest.parser import (
@@ -485,6 +490,7 @@ def dataset_run(
     
     cfg = load_config(config)
     use_ensemble = not no_ensemble
+    coco_cache = {}  # Cache for parsed COCO datasets
     
     def process_sample(sample, sample_out):
         """Process a single sample."""
@@ -516,6 +522,30 @@ def dataset_run(
         raw_separability = None
         clean_metrics_data = None
         clean_result_obj = None
+        annotation_roi_path = None
+        
+        # Process annotation if present (generates ROI from bboxes)
+        if sample.annotation and sample.annotation_type:
+            from .dataset.annotation_processor import process_sample_annotation, AnnotationError
+            
+            try:
+                mask, annotation_roi_path = process_sample_annotation(
+                    sample, sample_out, coco_dataset_cache=coco_cache
+                )
+                if mask is not None and roi_mask_for_metrics is None:
+                    # Use annotation ROI if no explicit roi_mask was provided
+                    roi_mask_for_metrics = mask
+                    if mask.shape != hsi.shape[:2]:
+                        roi_mask_for_metrics = cv2.resize(
+                            mask.astype(np.uint8),
+                            (hsi.shape[1], hsi.shape[0]),
+                            interpolation=cv2.INTER_NEAREST
+                        ).astype(bool)
+            except AnnotationError as e:
+                if on_annot_error == "abort":
+                    raise
+                else:
+                    console.print(f"  [yellow]Annotation warning:[/yellow] {e}")
         
         if sample.roi_mask_resolved:
             roi_path = sample.roi_mask_resolved
@@ -588,6 +618,9 @@ def dataset_run(
         }
         if sample.roi_mask_resolved:
             run_config_data["roi_mask_path"] = str(sample.roi_mask_resolved)
+        if annotation_roi_path:
+            run_config_data["annotation_roi_path"] = str(annotation_roi_path)
+            run_config_data["annotation_type"] = sample.annotation_type
         if clean_result_obj:
             run_config_data["clean"] = {"enabled": True, "policy": clean_result_obj.policy}
         if upscale_factor:
