@@ -772,7 +772,7 @@ def spectra_extract(
         CoordinateError, ROIError, SpectralSignature
     )
     from .spectra.exporter import export_signature, export_batch_csv, export_batch_json
-    from .spectra.wavelengths import get_wavelengths, WavelengthError
+    from .spectra.wavelengths import WavelengthError
     from .spectra.normalize import normalize_signature, validate_normalize_mode
     from .spectra.batch import load_pixels_file, extract_batch, BatchError
     from rich.table import Table
@@ -808,17 +808,7 @@ def spectra_extract(
         console.print("[red]Error:[/red] Use only one extraction mode: --pixel, --roi-agg, or --pixels-file")
         raise typer.Exit(1)
     
-    # Load wavelengths
-    wavelengths = None
-    try:
-        wavelengths = get_wavelengths(wavelengths_file, wl_start, wl_step)
-        if wavelengths is not None:
-            console.print(f"Wavelengths: {wavelengths[0]:.1f} - {wavelengths[-1]:.1f} nm")
-    except WavelengthError as e:
-        console.print(f"[red]Error:[/red] {e}")
-        raise typer.Exit(1)
-    
-    # Load HSI
+    # Load HSI first to get wavelength_nm from NPZ
     try:
         loaded = load_hsi_artifact(from_dir, artifact)
         console.print(f"Loaded: {loaded.path.name} (shape: {loaded.shape})")
@@ -829,6 +819,33 @@ def spectra_extract(
     except HSILoadError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
+    
+    # Resolve wavelengths with priority: CLI override > NPZ default
+    from .spectra.wavelengths import resolve_wavelengths
+    try:
+        wl_result = resolve_wavelengths(
+            npz_wavelengths=loaded.wavelength_nm,
+            cli_file=wavelengths_file,
+            cli_start=wl_start,
+            cli_step=wl_step
+        )
+        wavelengths = wl_result.wavelength_nm
+        
+        # Log wavelength source
+        if wl_result.is_override:
+            console.print("[yellow]Using wavelengths from CLI (override).[/yellow] NPZ contains wavelength_nm too.")
+        else:
+            source_desc = {
+                "npz": "NPZ file",
+                "cli_file": f"file ({wavelengths_file})",
+                "cli_params": f"CLI params (start={wl_start}, step={wl_step})"
+            }
+            console.print(f"Wavelengths: {wavelengths[0]:.1f} - {wavelengths[-1]:.1f} nm (from {source_desc[wl_result.source]})")
+    except WavelengthError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+    
+
     
     export_dir = export_out if export_out else from_dir
     source_path = str(loaded.path)

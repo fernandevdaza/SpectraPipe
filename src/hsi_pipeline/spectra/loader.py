@@ -23,6 +23,7 @@ class LoadedHSI:
     path: Path
     artifact_type: str  # 'raw' or 'clean'
     shape: tuple
+    wavelength_nm: np.ndarray | None = None  # (31,) if available
 
 
 ARTIFACT_FILENAMES = {
@@ -42,7 +43,7 @@ def load_hsi_artifact(
         artifact: Which artifact to load ('raw' or 'clean').
     
     Returns:
-        LoadedHSI with data and metadata.
+        LoadedHSI with data, metadata, and wavelength_nm if available.
     
     Raises:
         HSINotFoundError: If artifact file doesn't exist.
@@ -86,11 +87,17 @@ def load_hsi_artifact(
                     f"Invalid NPZ: missing 'cube' or 'data' key. Found keys: {list(loaded.keys())}"
                 )
             
+            # Load wavelength_nm if present
+            wavelength_nm = None
+            if "wavelength_nm" in loaded:
+                wavelength_nm = loaded["wavelength_nm"]
+            
             return LoadedHSI(
                 data=data,
                 path=npz_path,
                 artifact_type=artifact,
-                shape=data.shape
+                shape=data.shape,
+                wavelength_nm=wavelength_nm
             )
         except Exception as e:
             if isinstance(e, HSILoadError):

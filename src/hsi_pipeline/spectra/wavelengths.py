@@ -3,7 +3,8 @@
 import json
 import csv
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
+from dataclasses import dataclass
 import numpy as np
 
 
@@ -118,3 +119,93 @@ def get_wavelengths(
         )
     
     return None
+
+
+
+@dataclass
+class WavelengthResult:
+    """Result of wavelength resolution."""
+    wavelength_nm: np.ndarray
+    source: Literal["npz", "cli_file", "cli_params"]
+    is_override: bool = False
+
+
+def resolve_wavelengths(
+    npz_wavelengths: Optional[np.ndarray] = None,
+    cli_file: Optional[Path] = None,
+    cli_start: Optional[float] = None,
+    cli_step: Optional[float] = None,
+) -> WavelengthResult:
+    """Resolve wavelengths with priority: CLI override > NPZ default.
+    
+    Priority:
+        1. CLI file (--wavelengths): if provided, use and override NPZ
+        2. CLI params (--wl-start/--wl-step): if provided, use and override NPZ
+        3. NPZ wavelengths: if available, use as default
+        4. None of the above: raise error
+    
+    Args:
+        npz_wavelengths: Wavelengths from NPZ file (if present).
+        cli_file: Path to wavelengths file from CLI.
+        cli_start: Start wavelength from CLI.
+        cli_step: Step wavelength from CLI.
+    
+    Returns:
+        WavelengthResult with resolved wavelengths and source.
+    
+    Raises:
+        WavelengthError: If no wavelengths available.
+    """
+    has_npz = npz_wavelengths is not None
+    has_cli_file = cli_file is not None
+    has_cli_params = cli_start is not None and cli_step is not None
+    
+    # Validate NPZ wavelengths if present
+    if has_npz and len(npz_wavelengths) != NUM_BANDS:
+        raise WavelengthError(
+            f"NPZ wavelength_nm has invalid length: expected {NUM_BANDS}, "
+            f"got {len(npz_wavelengths)}"
+        )
+    
+    # Validate partial CLI params
+    if (cli_start is not None) != (cli_step is not None):
+        raise WavelengthError(
+            "Both --wl-start and --wl-step must be provided together"
+        )
+    
+    # Validate step
+    if has_cli_params and cli_step <= 0:
+        raise WavelengthError(f"--wl-step must be > 0, got {cli_step}")
+    
+    # CLI file takes priority
+    if has_cli_file:
+        wavelengths = load_wavelengths(cli_file)
+        return WavelengthResult(
+            wavelength_nm=wavelengths,
+            source="cli_file",
+            is_override=has_npz
+        )
+    
+    # CLI params take priority
+    if has_cli_params:
+        wavelengths = generate_wavelengths(cli_start, cli_step)
+        return WavelengthResult(
+            wavelength_nm=wavelengths,
+            source="cli_params",
+            is_override=has_npz
+        )
+    
+    # Use NPZ if available
+    if has_npz:
+        return WavelengthResult(
+            wavelength_nm=npz_wavelengths,
+            source="npz",
+            is_override=False
+        )
+    
+    # No wavelengths available
+    raise WavelengthError(
+        "No wavelength axis available. "
+        "Provide --wavelengths <file> or --wl-start/--wl-step, "
+        "or re-export the HSI with wavelength_nm."
+    )
