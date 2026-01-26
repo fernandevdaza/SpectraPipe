@@ -23,19 +23,20 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install poetry
 
-      - name: Cache Poetry and venv
+      - name: Cache Poetry downloads (NO venv)
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/pypoetry
-            .venv
-          key: ${{ runner.os }}-py312-poetry-${{ hashFiles('**/poetry.lock') }}
+            ~/.cache/pip
+          key: ${{ runner.os }}-py312-poetry-cache-v2-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            ${{ runner.os }}-py312-poetry-
+            ${{ runner.os }}-py312-poetry-cache-v2-
 
       - name: Install dependencies (incl. dev)
         run: |
           poetry config virtualenvs.in-project true
+          poetry env use python
           poetry install --with dev --no-interaction --no-ansi
 
       - name: Lint
