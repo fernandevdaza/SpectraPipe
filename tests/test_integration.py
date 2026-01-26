@@ -46,8 +46,9 @@ def test_integration_full_pipeline():
         assert (out_path / "metrics.json").exists()
         
         # Valid HSI output
-        loaded = np.load(out_path / "hsi_raw_full.npz")
-        hsi = loaded["data"]
+        loaded = np.load(out_path / "hsi_raw_full.npz", allow_pickle=True)
+        # Schema v1 uses 'cube', legacy uses 'data'
+        hsi = loaded["cube"] if "cube" in loaded else loaded["data"]
         
         assert hsi.ndim == 3
         assert hsi.shape[2] == 31  # 31 bands

@@ -45,9 +45,9 @@ def test_cli_run_smoke(mock_rgb_to_hsi):
         assert (out_path / "metrics.json").exists(), "metrics.json missing"
         assert (out_path / "run_config.json").exists(), "run_config.json missing"
         
-        # Verify NPZ is readable
-        loaded = np.load(out_path / "hsi_raw_full.npz")
-        assert "data" in loaded
+        # Verify NPZ is readable (schema v1 uses 'cube', legacy uses 'data')
+        loaded = np.load(out_path / "hsi_raw_full.npz", allow_pickle=True)
+        assert "cube" in loaded or "data" in loaded
         
         # Verify JSON is valid
         import json

@@ -83,12 +83,28 @@ class ExportManager:
         
         return self.out_dir / f"{name}.{ext}"
     
-    def export_array(self, artifact_key: str, data: np.ndarray) -> Path:
+    def export_array(
+        self,
+        artifact_key: str,
+        data: np.ndarray,
+        input_path: str | None = None,
+        original_shape: tuple | None = None,
+        fitted_shape: tuple | None = None,
+        wavelength_nm: np.ndarray | None = None,
+        pipeline_version: str = "1.0.0",
+    ) -> Path:
         """Export a numpy array to file.
+        
+        For HSI artifacts (hsi_raw, hsi_clean, etc.), uses NPZ Schema v1.
         
         Args:
             artifact_key: Key identifying the artifact type.
             data: Numpy array to export.
+            input_path: Original input image path (for metadata).
+            original_shape: Original image shape (for metadata).
+            fitted_shape: Fitted image shape (for metadata).
+            wavelength_nm: Optional wavelength array (31,).
+            pipeline_version: Pipeline version string.
         
         Returns:
             Path to the exported file.
@@ -109,7 +125,32 @@ class ExportManager:
                     RuntimeWarning
                 )
         
-        if self.format == "npz":
+        # Use NPZ Schema v1 for HSI artifacts
+        is_hsi_artifact = artifact_key.startswith("hsi_")
+        
+        if self.format == "npz" and is_hsi_artifact and data.ndim == 3:
+            from .npz_schema import save_npz_v1, NPZMetadata
+            
+            # Determine artifact type from key
+            artifact_type_map = {
+                "hsi_raw": "raw",
+                "hsi_clean": "clean",
+                "hsi_upscaled_baseline": "upscaled_baseline",
+                "hsi_upscaled_improved": "upscaled_improved",
+            }
+            artifact_type = artifact_type_map.get(artifact_key, "raw")
+            
+            metadata = NPZMetadata(
+                artifact=artifact_type,
+                input_path=input_path,
+                original_shape=original_shape,
+                fitted_shape=fitted_shape,
+                pipeline_version=pipeline_version,
+            )
+            
+            save_npz_v1(path, data, metadata, wavelength_nm)
+        
+        elif self.format == "npz":
             np.savez_compressed(path, data=data)
         else:
             np.save(path, data)
