@@ -267,3 +267,108 @@ class ExportManager:
                     pass  # Best effort cleanup
         self._exported.clear()
         return removed
+    
+    def mark_skipped(self, artifact_key: str, reason: str) -> None:
+        """Mark an artifact as skipped with reason.
+        
+        Args:
+            artifact_key: Key identifying the artifact.
+            reason: Reason why it was skipped.
+        """
+        if not hasattr(self, '_skipped'):
+            self._skipped = []
+        self._skipped.append({"artifact": artifact_key, "reason": reason})
+    
+    def list_skipped(self) -> list[dict]:
+        """Return list of skipped artifacts with reasons."""
+        return getattr(self, '_skipped', []).copy()
+    
+    def export_roi(
+        self,
+        mask: "np.ndarray",
+        source_path: str | None = None,
+        export_as: str = "png"
+    ) -> Path:
+        """Export ROI mask file.
+        
+        Args:
+            mask: Binary ROI mask (H, W).
+            source_path: Original path (for ref export).
+            export_as: Export format ('png', 'npy', 'npz', 'ref').
+        
+        Returns:
+            Path to exported file.
+        """
+        if export_as == "ref":
+            # Export as reference JSON
+            import hashlib
+            ref_data = {
+                "source_path": str(source_path) if source_path else None,
+                "shape": list(mask.shape),
+                "dtype": str(mask.dtype),
+                "pixel_count": int(mask.sum()),
+                "coverage": float(mask.sum() / mask.size),
+            }
+            if source_path:
+                try:
+                    with open(source_path, "rb") as f:
+                        ref_data["hash_md5"] = hashlib.md5(f.read()).hexdigest()
+                except Exception:
+                    pass
+            return self.export_json("roi_mask_ref", ref_data)
+        
+        elif export_as == "png":
+            from PIL import Image
+            path = self.get_path("roi_mask", ext="png")
+            if path.exists() and not self.overwrite:
+                raise FileExistsError(f"Artifact already exists: {path}")
+            img = Image.fromarray((mask * 255).astype(np.uint8))
+            img.save(path)
+            self._exported.append(path.name)
+            return path
+        
+        elif export_as in ("npy", "npz"):
+            path = self.get_path("roi_mask", ext=export_as)
+            if path.exists() and not self.overwrite:
+                raise FileExistsError(f"Artifact already exists: {path}")
+            if export_as == "npz":
+                np.savez_compressed(path, mask=mask)
+            else:
+                np.save(path, mask)
+            self._exported.append(path.name)
+            return path
+        
+        else:
+            raise ValueError(f"Unknown ROI export format: {export_as}")
+    
+    def get_export_summary(self) -> dict:
+        """Get summary of exported and skipped artifacts.
+        
+        Returns:
+            Dict with 'exported' and 'skipped' lists.
+        """
+        return {
+            "exported": self.list_exported(),
+            "skipped": self.list_skipped(),
+            "exported_count": len(self._exported),
+            "skipped_count": len(getattr(self, '_skipped', [])),
+        }
+    
+    def log_export_summary(self, console) -> None:
+        """Log export summary to console.
+        
+        Args:
+            console: Rich console for output.
+        """
+        summary = self.get_export_summary()
+        
+        if summary["exported"]:
+            console.print("[green]Exported artifacts:[/green]")
+            for name in summary["exported"]:
+                console.print(f"  ✓ {name}")
+        
+        if summary["skipped"]:
+            console.print("[yellow]Skipped artifacts:[/yellow]")
+            for item in summary["skipped"]:
+                console.print(f"  ⊘ {item['artifact']}: {item['reason']}")
+
