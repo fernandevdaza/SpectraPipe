@@ -309,6 +309,21 @@ def run(
             pipeline_version=PIPELINE_VERSION,
             extra=run_config_extra,
         )
+        
+        # Mark skipped artifacts for logging
+        if roi_result is None:
+            exporter.mark_skipped("hsi_clean", "no ROI provided")
+            exporter.mark_skipped("roi_mask", "no ROI provided")
+        elif clean_result is None:
+            exporter.mark_skipped("hsi_clean", "ROI empty or full")
+        
+        if upscale_factor is None:
+            exporter.mark_skipped("hsi_upscaled_baseline", "upscaling not requested")
+            exporter.mark_skipped("hsi_upscaled_improved", "upscaling not requested")
+        
+        # Log export summary
+        console.print("")
+        exporter.log_export_summary(console)
 
     except NotADirectoryError as e:
         console.print(f"[red]Output Error:[/red] {e}")

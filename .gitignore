@@ -3,3 +3,5 @@ runs
 __pycache__
 out
 READMES
+tests/test_images/dataset_small/rgb/output/*
+tests/test_images/output/*

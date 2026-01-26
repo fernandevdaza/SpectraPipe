@@ -5,9 +5,15 @@ on:
     branches: ["main"]
   pull_request:
 
+
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    env:
+      PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
+      PIP_EXTRA_INDEX_URL: https://pypi.org/simple
+      PIP_NO_CACHE_DIR: "1"
 
     steps:
       - name: Checkout
@@ -23,15 +29,13 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install poetry
 
-      - name: Cache Poetry downloads (NO venv)
+      - name: Cache Poetry downloads (small)
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.cache/pypoetry
-            ~/.cache/pip
-          key: ${{ runner.os }}-py312-poetry-cache-v2-${{ hashFiles('**/poetry.lock') }}
+          path: ~/.cache/pypoetry
+          key: ${{ runner.os }}-py312-poetry-v3-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
-            ${{ runner.os }}-py312-poetry-cache-v2-
+            ${{ runner.os }}-py312-poetry-v3-
 
       - name: Install dependencies (incl. dev)
         run: |
