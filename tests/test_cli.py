@@ -583,13 +583,15 @@ def test_spectra_pixel_extraction(mock_rgb_to_hsi):
     ])
     assert result.exit_code == 0, f"Run failed: {result.stdout}"
     
-    # Then extract spectra
+    # Then extract spectra (need wavelengths since fail-safe is on)
     result = runner.invoke(app, [
         "spectra",
         "--from", str(out_path),
         "--artifact", "raw",
         "--pixel", "10,20",
-        "--export", "json"
+        "--export", "json",
+        "--wl-start", "400",
+        "--wl-step", "10"
     ])
     
     assert result.exit_code == 0, f"Spectra failed: {result.stdout}"
@@ -626,7 +628,9 @@ def test_spectra_pixel_out_of_range():
         "--from", str(out_path),
         "--artifact", "raw",
         "--pixel", "100,100",  # Out of range for 32x32
-        "--export", "json"
+        "--export", "json",
+        "--wl-start", "400",
+        "--wl-step", "10"
     ])
     
     assert result.exit_code != 0
