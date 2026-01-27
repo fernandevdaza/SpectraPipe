@@ -160,24 +160,20 @@ def resolve_wavelengths(
     has_cli_file = cli_file is not None
     has_cli_params = cli_start is not None and cli_step is not None
     
-    # Validate NPZ wavelengths if present
     if has_npz and len(npz_wavelengths) != NUM_BANDS:
         raise WavelengthError(
             f"NPZ wavelength_nm has invalid length: expected {NUM_BANDS}, "
             f"got {len(npz_wavelengths)}"
         )
     
-    # Validate partial CLI params
     if (cli_start is not None) != (cli_step is not None):
         raise WavelengthError(
             "Both --wl-start and --wl-step must be provided together"
         )
     
-    # Validate step
     if has_cli_params and cli_step <= 0:
         raise WavelengthError(f"--wl-step must be > 0, got {cli_step}")
     
-    # CLI file takes priority
     if has_cli_file:
         wavelengths = load_wavelengths(cli_file)
         return WavelengthResult(

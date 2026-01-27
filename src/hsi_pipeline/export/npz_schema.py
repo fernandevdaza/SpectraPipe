@@ -9,21 +9,17 @@ from datetime import datetime
 import warnings
 
 
-# Schema version constant
 SCHEMA_VERSION = 1
 
-# Required keys
 KEY_CUBE = "cube"
 KEY_SCHEMA_VERSION = "schema_version"
 KEY_METADATA = "metadata"
 
-# Optional keys
 KEY_WAVELENGTH_NM = "wavelength_nm"
 
 # Legacy key (for backward compatibility)
 KEY_DATA_LEGACY = "data"
 
-# Expected dimensions
 EXPECTED_BANDS = 31
 
 
@@ -136,11 +132,9 @@ def save_npz_v1(
             f"cube must have {EXPECTED_BANDS} bands, got {cube.shape[2]}"
         )
     
-    # Convert to float32 if needed
     if cube.dtype != np.float32:
         cube = cube.astype(np.float32)
     
-    # Update metadata with cube shape
     metadata.cube_shape = cube.shape
     if metadata.value_range is None:
         metadata.value_range = {
@@ -148,7 +142,6 @@ def save_npz_v1(
             "max": float(cube.max())
         }
     
-    # Validate wavelengths if provided
     if wavelength_nm is not None:
         if len(wavelength_nm) != EXPECTED_BANDS:
             raise NPZSchemaError(
@@ -156,7 +149,6 @@ def save_npz_v1(
             )
         wavelength_nm = wavelength_nm.astype(np.float32)
     
-    # Build save dict
     save_dict = {
         KEY_CUBE: cube,
         KEY_SCHEMA_VERSION: np.array(SCHEMA_VERSION, dtype=np.int32),
@@ -166,7 +158,6 @@ def save_npz_v1(
     if wavelength_nm is not None:
         save_dict[KEY_WAVELENGTH_NM] = wavelength_nm
     
-    # Save
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(path, **save_dict)
     

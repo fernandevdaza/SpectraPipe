@@ -69,7 +69,6 @@ def validate_metrics(data: dict) -> list[str]:
     """
     warnings = []
     
-    # Check expected fields and types
     expected_fields = {
         "hsi_shape": list,
         "n_bands": (int, type(None)),
@@ -86,7 +85,6 @@ def validate_metrics(data: dict) -> list[str]:
                 f"Unexpected type for '{field}': expected {expected_type}, got {type(data[field]).__name__}"
             )
     
-    # Check optional sections and suggest how to generate them
     if "raw_separability" not in data:
         warnings.append(
             "Missing: separability metrics → run with `--roi-mask <mask>` to generate"
