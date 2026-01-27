@@ -25,11 +25,11 @@ class ExportManager:
     
     Attributes:
         out_dir: Output directory path.
-        format: Default format for array exports ('npz' or 'npy').
+        format: Export format (only 'npz' supported).
         overwrite: Whether to overwrite existing files.
     """
     out_dir: Path
-    format: Literal["npz", "npy"] = "npz"
+    format: Literal["npz"] = "npz"
     overwrite: bool = True
     _exported: list[str] = field(default_factory=list)
     
@@ -124,9 +124,10 @@ class ExportManager:
                     RuntimeWarning
                 )
         
+        # Use NPZ Schema v1 for HSI artifacts
         is_hsi_artifact = artifact_key.startswith("hsi_")
         
-        if self.format == "npz" and is_hsi_artifact and data.ndim == 3:
+        if is_hsi_artifact and data.ndim == 3:
             from .npz_schema import save_npz_v1, NPZMetadata
             
             artifact_type_map = {
@@ -146,11 +147,9 @@ class ExportManager:
             )
             
             save_npz_v1(path, data, metadata, wavelength_nm)
-        
-        elif self.format == "npz":
-            np.savez_compressed(path, data=data)
         else:
-            np.save(path, data)
+            # Non-HSI arrays use simple NPZ
+            np.savez_compressed(path, data=data)
         
         self._exported.append(path.name)
         return path

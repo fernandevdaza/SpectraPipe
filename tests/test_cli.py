@@ -616,12 +616,14 @@ def test_spectra_pixel_out_of_range():
     """Test spectra command fails for out-of-range pixel."""
     import shutil
     import tempfile
+    from hsi_pipeline.export.npz_schema import save_npz_v1, NPZMetadata
     
     out_path = Path(tempfile.mkdtemp())
     
-    # Create a small HSI
+    # Create a small HSI using schema v1
     hsi = np.ones((32, 32, 31), dtype=np.float32)
-    np.savez_compressed(out_path / "hsi_raw_full.npz", data=hsi)
+    metadata = NPZMetadata(artifact="raw")
+    save_npz_v1(out_path / "hsi_raw_full.npz", hsi, metadata)
     
     result = runner.invoke(app, [
         "spectra",
