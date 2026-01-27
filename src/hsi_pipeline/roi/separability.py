@@ -9,15 +9,21 @@ def calculate_separability(
 ) -> float | None:
     """Calculate spectral separability between ROI and background.
     
-    Uses Jeffries-Matusita distance approximation based on mean spectra
-    and spectral angle.
+    Uses the normalized Spectral Angle Mapper (SAM) metric between the 
+    mean spectral signatures of the ROI and the background.
+    
+    The calculated spectral angle (in radians) is normalized by pi/2 to 
+    return a score in the [0, 1] range.
     
     Args:
         hsi: HSI cube of shape (H, W, C).
         mask: Binary mask of shape (H, W), True = ROI.
     
     Returns:
-        Separability score (0-1) or None if ROI is empty/full.
+        Separability score (0.0 to 1.0).
+        0.0 indicates identical mean spectral shapes (collinear vectors).
+        1.0 indicates orthogonal spectral shapes (maximally different).
+        Returns None if ROI or Background is empty.
     """
     if hsi.ndim != 3:
         raise ValueError(f"HSI must be 3D (H, W, C), got {hsi.ndim}D")
@@ -27,13 +33,12 @@ def calculate_separability(
             f"Mask shape {mask.shape} doesn't match HSI spatial dims {hsi.shape[:2]}"
         )
     
-    # Check for empty/full ROI
     roi_pixels = np.sum(mask)
     total_pixels = mask.size
     bg_pixels = total_pixels - roi_pixels
     
     if roi_pixels == 0 or bg_pixels == 0:
-        return None  # Cannot compute separability
+        return None  
     
     # Flatten spatial dimensions
     h, w, c = hsi.shape

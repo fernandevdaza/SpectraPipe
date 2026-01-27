@@ -62,7 +62,6 @@ def load_hsi_artifact(
     
     base_name = ARTIFACT_FILENAMES[artifact]
     
-    # Try NPZ first, then NPY
     npz_path = from_dir / f"{base_name}.npz"
     npy_path = from_dir / f"{base_name}.npy"
     
@@ -70,7 +69,6 @@ def load_hsi_artifact(
         try:
             loaded = np.load(npz_path, allow_pickle=True)
             
-            # NPZ Schema v1: use 'cube' key
             if "cube" in loaded:
                 data = loaded["cube"]
             # Legacy: use 'data' key
@@ -87,7 +85,6 @@ def load_hsi_artifact(
                     f"Invalid NPZ: missing 'cube' or 'data' key. Found keys: {list(loaded.keys())}"
                 )
             
-            # Load wavelength_nm if present
             wavelength_nm = None
             if "wavelength_nm" in loaded:
                 wavelength_nm = loaded["wavelength_nm"]

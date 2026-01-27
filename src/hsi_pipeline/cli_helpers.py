@@ -26,7 +26,6 @@ def load_image(path: Path, console: Console) -> np.ndarray:
     """
     import typer
     
-    # Validate image integrity
     try:
         with Image.open(path) as img:
             img.load()
@@ -35,7 +34,6 @@ def load_image(path: Path, console: Console) -> np.ndarray:
         console.print(f"[yellow]Detail:[/yellow] {e}")
         raise typer.Exit(1)
     
-    # Load with OpenCV
     rgb = cv2.imread(str(path))
     if rgb is None:
         console.print("[red]Error:[/red] OpenCV failed to load the image (format might not be supported by cv2).")
@@ -90,7 +88,6 @@ def export_pipeline_output(
         metrics_extra["upscaled_size"] = list(output.upscale_data.hsi_baseline.shape[:2])
         metrics_extra["upscaling_methods"] = ["baseline_bicubic", "improved_edge_guided"]
     
-    # Export metrics
     exporter.export_metrics(
         hsi_shape=output.hsi_raw.shape,
         execution_time=output.execution_time,
@@ -98,7 +95,6 @@ def export_pipeline_output(
         extra=metrics_extra if metrics_extra else None,
     )
     
-    # Build fitting info
     fitting_info = {
         "policy": output.fit_result.policy,
         "padding": list(output.fit_result.padding),
@@ -106,7 +102,6 @@ def export_pipeline_output(
         "input_shape_fitted": list(output.fit_result.fitted_shape),
     }
     
-    # Build run config extra
     run_config_extra = {
         "hsi_shape": list(output.hsi_raw.shape),
     }
@@ -131,7 +126,6 @@ def export_pipeline_output(
             "upscaled_size": list(output.upscale_data.hsi_baseline.shape[:2]),
         }
     
-    # Export run config
     exporter.export_run_config(
         input_path=str(input_path),
         config_path=str(config_path),
@@ -140,7 +134,6 @@ def export_pipeline_output(
         extra=run_config_extra,
     )
     
-    # Mark skipped artifacts
     if output.roi_data is None:
         exporter.mark_skipped("hsi_clean", "no ROI provided")
         exporter.mark_skipped("roi_mask", "no ROI provided")
@@ -172,7 +165,6 @@ def log_pipeline_progress(output: PipelineOutput, console: Console) -> None:
     else:
         console.print("[dim]ROI not provided → separability omitted[/dim]")
     
-    # Log clean info
     if output.hsi_clean is not None:
         console.print(f"  Policy: {output.clean_data.policy}")
         console.print(f"  ✓ Clean HSI generated: {output.hsi_clean.shape}")
@@ -186,7 +178,6 @@ def log_pipeline_progress(output: PipelineOutput, console: Console) -> None:
     else:
         console.print("[dim]Clean skipped (no ROI mask)[/dim]")
     
-    # Log upscaling info
     if output.upscale_data is not None:
         console.print(f"  ✓ Upscaling complete: {output.hsi_raw.shape[:2]} → {output.upscale_data.hsi_baseline.shape[:2]}")
     else:

@@ -28,11 +28,9 @@ class SpectralSignature:
     source: str  # 'pixel' or 'roi'
     artifact: str  # 'raw' or 'clean'
     
-    # For pixel extraction
     pixel_x: Optional[int] = None
     pixel_y: Optional[int] = None
     
-    # For ROI extraction
     roi_aggregation: Optional[str] = None
     roi_pixel_count: Optional[int] = None
 

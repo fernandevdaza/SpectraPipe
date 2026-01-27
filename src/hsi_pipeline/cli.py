@@ -75,19 +75,15 @@ def run(
     """Run the full HSI processing pipeline."""
     from .roi.loader import ROILoadError, ROIValidationError
     
-    # Load configuration
     cfg = load_config(config)
     
-    # Determine output directory
     if out is None:
         out = input.parent / "output"
     
-    # Setup exporter
     exporter = ExportManager(out_dir=out, format="npz", overwrite=True)
     
     console.print(f"Loading image: {input}")
     
-    # Load image
     rgb = load_image(input, console)
     
     console.print(f"Fitting input: policy={cfg.fitting.policy}, multiple={cfg.fitting.multiple}")
@@ -95,7 +91,6 @@ def run(
     try:
         exporter.prepare_directory()
         
-        # Create orchestrator and run pipeline
         orchestrator = PipelineOrchestrator()
         
         console.print("Converting RGB → HSI using MST++...")
@@ -110,14 +105,11 @@ def run(
         
         result = orchestrator.run(pipeline_input)
         
-        # Log fitting info
         console.print(f"  Original shape: {result.fit_result.original_shape[0]}x{result.fit_result.original_shape[1]}")
         console.print(f"  Fitted shape:   {result.fit_result.fitted_shape[0]}x{result.fit_result.fitted_shape[1]}")
         
-        # Log progress
         log_pipeline_progress(result, console)
         
-        # Export all outputs
         export_pipeline_output(
             output=result,
             exporter=exporter,
@@ -127,7 +119,6 @@ def run(
             console=console,
         )
         
-        # Log export summary
         console.print("")
         exporter.log_export_summary(console)
         
@@ -168,7 +159,6 @@ def run(
         console.print("[yellow]Suggestion:[/yellow] Check input image and model configuration.")
         raise typer.Exit(1)
     
-    # Print summary
     exported = exporter.list_exported()
     console.print(f"\n[bold]Exported artifacts ({len(exported)}):[/bold]")
     for artifact in exported:
@@ -528,24 +518,20 @@ def spectra_extract(
     console.print(f"Source: {from_dir}")
     console.print(f"Artifact: {artifact}")
     
-    # Validate artifact
     if artifact not in ("raw", "clean"):
         console.print(f"[red]Error:[/red] Invalid artifact '{artifact}'. Use 'raw' or 'clean'.")
         raise typer.Exit(1)
     
-    # Validate export format
     if export not in ("csv", "json", "both"):
         console.print(f"[red]Error:[/red] Invalid export format '{export}'. Use 'csv', 'json', or 'both'.")
         raise typer.Exit(1)
     
-    # Validate normalization
     try:
         norm_mode = validate_normalize_mode(normalize)
     except ValueError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
     
-    # Validate extraction mode
     modes = sum([pixel is not None, roi_agg is not None, pixels_file is not None])
     if modes == 0:
         console.print("[red]Error:[/red] Specify one of: --pixel, --roi-agg, or --pixels-file")
@@ -555,7 +541,6 @@ def spectra_extract(
         console.print("[red]Error:[/red] Use only one extraction mode: --pixel, --roi-agg, or --pixels-file")
         raise typer.Exit(1)
     
-    # Load HSI first to get wavelength_nm from NPZ
     try:
         loaded = load_hsi_artifact(from_dir, artifact)
         console.print(f"Loaded: {loaded.path.name} (shape: {loaded.shape})")
@@ -610,7 +595,6 @@ def spectra_extract(
         
         batch_result = extract_batch(loaded.data, pixels_list, artifact, fail_fast=False)
         
-        # Apply normalization
         for sig in batch_result.signatures:
             sig.values = normalize_signature(sig.values, norm_mode)
         
@@ -618,7 +602,6 @@ def spectra_extract(
         if batch_result.fail_count > 0:
             console.print(f"[yellow]Failed: {batch_result.fail_count}[/yellow]")
         
-        # Export
         paths = []
         if export in ("csv", "both"):
             paths.append(export_batch_csv(batch_result.signatures, export_dir, artifact, wavelengths, norm_mode))
@@ -629,7 +612,6 @@ def spectra_extract(
         for p in paths:
             console.print(f"  {p}")
         
-        # Plot
         if plot and batch_result.signatures:
             from .spectra.plot import plot_batch_signatures
             plot_paths = plot_batch_signatures(batch_result.signatures, wavelengths, export_dir, artifact, plot_first_n)

@@ -55,22 +55,18 @@ class PipelineInput:
 @dataclass
 class PipelineOutput:
     """Complete result of pipeline execution."""
-    # Core outputs
-    hsi_raw: np.ndarray                # Raw HSI cube (H, W, 31)
-    fit_result: FittingResult          # Input fitting metadata
+    hsi_raw: np.ndarray                
+    fit_result: FittingResult          
     
-    # Optional outputs
     hsi_clean: Optional[np.ndarray] = None
     roi_data: Optional[ROIData] = None
     clean_data: Optional[CleanData] = None
     upscale_data: Optional[UpscaleData] = None
     
-    # Metrics
     raw_separability: Optional[float] = None
     clean_metrics: Optional[dict] = None
     execution_time: float = 0.0
     
-    # Original RGB (for upscaling reference)
     rgb_original: Optional[np.ndarray] = None
 
 
@@ -116,14 +112,12 @@ class PipelineOrchestrator:
             fit_result.padding
         )
         
-        # Initialize output
         output = PipelineOutput(
             hsi_raw=hsi_raw,
             fit_result=fit_result,
             rgb_original=input.rgb,
         )
         
-        # Step 3: ROI processing (if provided)
         if input.roi_mask_path is not None:
             output.roi_data = self._process_roi(
                 input.roi_mask_path, 
@@ -131,13 +125,11 @@ class PipelineOrchestrator:
                 hsi_raw.shape[:2]
             )
             
-            # Calculate raw separability
             output.raw_separability = self._calculate_separability(
                 hsi_raw, 
                 output.roi_data.mask_resized
             )
             
-            # Step 4: Background suppression (if partial coverage)
             if 0 < output.roi_data.coverage < 1:
                 clean_result = self._generate_clean(
                     hsi_raw, 
@@ -152,7 +144,6 @@ class PipelineOrchestrator:
                         output.roi_data.mask_resized
                     )
         
-        # Step 5: Upscaling (if factor provided)
         if input.upscale_factor is not None:
             output.upscale_data = self._upscale(
                 hsi_raw, 
@@ -160,7 +151,6 @@ class PipelineOrchestrator:
                 input.upscale_factor
             )
         
-        # Record execution time
         output.execution_time = time.perf_counter() - start_time
         
         return output
@@ -184,7 +174,6 @@ class PipelineOrchestrator:
         
         roi_result = load_roi_mask(roi_path, original_shape)
         
-        # Resize mask to match HSI dimensions if needed
         mask_resized = roi_result.mask
         if roi_result.mask.shape != hsi_shape:
             mask_resized = cv2.resize(
