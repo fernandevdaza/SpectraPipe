@@ -35,7 +35,6 @@ class Sample:
     image: str
     roi_mask: Optional[str] = None
     
-    # Annotation support (COCO/VOC)
     annotation: Optional[str] = None  # Path to annotation file
     annotation_type: Optional[str] = None  # 'voc' or 'coco'
     

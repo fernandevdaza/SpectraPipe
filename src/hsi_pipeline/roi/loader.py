@@ -50,19 +50,17 @@ def load_roi_mask(
     
     try:
         with Image.open(mask_path) as img:
-            mask = np.array(img.convert("L"))  # Convert to grayscale
+            mask = np.array(img.convert("L"))
     except Exception as e:
         raise ROILoadError(f"Cannot decode ROI mask: {e}")
     
     warnings = []
     
-    # Validate dimensions
     if mask.shape != expected_shape:
         raise ROIValidationError(
             f"ROI mask size mismatch: expected {expected_shape}, got {mask.shape}"
         )
     
-    # Check if binary
     unique_values = np.unique(mask)
     is_binary = len(unique_values) <= 2 and set(unique_values).issubset({0, 255})
     
@@ -73,13 +71,10 @@ def load_roi_mask(
         )
         mask = (mask > BINARIZE_THRESHOLD).astype(np.uint8) * 255
     
-    # Convert to boolean
     binary_mask = mask > 0
     
-    # Calculate coverage
     coverage = float(np.mean(binary_mask))
     
-    # Warn on edge cases
     if coverage == 0.0:
         warnings.append("ROI mask is empty (0% coverage), separability will be NA")
     elif coverage == 1.0:

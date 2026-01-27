@@ -169,7 +169,6 @@ def export_batch_csv(
     with open(filepath, 'w', newline='') as f:
         writer = csv.writer(f)
         
-        # Build header
         header = ["x", "y"]
         if wavelengths is not None:
             header.extend([f"band_{i+1}_{wavelengths[i]:.1f}nm" for i in range(31)])

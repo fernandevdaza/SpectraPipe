@@ -85,7 +85,6 @@ def save_mask(
     
     if format == "png":
         from PIL import Image
-        # Convert bool to uint8 for PNG
         img = Image.fromarray((mask * 255).astype(np.uint8))
         img.save(output_path)
     elif format == "npy":

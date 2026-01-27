@@ -9,7 +9,7 @@ def test_app_info():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "Usage" in result.stdout or "Options" in result.stdout
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_process_image_success(mock_rgb_to_hsi):
     """Test processing a valid image."""
     mock_rgb_to_hsi.return_value = np.zeros((32, 32, 31), dtype=np.float32)
@@ -39,7 +39,7 @@ def test_run_no_args():
     result = runner.invoke(app, ["run"])
     assert result.exit_code != 0
     assert result.exit_code == 2
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_process_image_implicit_out(mock_rgb_to_hsi):
     """Test processing a valid image without specifying output directory."""
     mock_rgb_to_hsi.return_value = np.zeros((32, 32, 31), dtype=np.float32)
@@ -69,7 +69,7 @@ def test_process_image_really_corrupt():
     
     assert result.exit_code != 0
     assert "Integrity Error" in result.stdout or "Error" in result.stdout
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_process_image_tiny(mock_rgb_to_hsi):
     """Test processing an image that is too small (e.g. 1x1) - should be padded."""
     mock_rgb_to_hsi.return_value = np.zeros((32, 32, 31), dtype=np.float32)
@@ -90,7 +90,7 @@ def test_process_image_text_format():
     
     assert result.exit_code != 0
     assert "Integrity Error" in result.stdout or "Error" in result.stdout
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_metadata_written(mock_rgb_to_hsi):
     """Test that run_config.json metadata is written with fitting info."""
     import json
@@ -121,7 +121,7 @@ def test_metadata_written(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_smoke_oddsize_image(mock_rgb_to_hsi):
     """Smoke test: process odd-sized image end-to-end."""
     import shutil
@@ -151,7 +151,7 @@ def test_smoke_oddsize_image(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_smoke_us06_minimal_artifacts(mock_rgb_to_hsi):
     """US-06: Verify minimal artifact structure is exported."""
     import shutil
@@ -176,7 +176,7 @@ def test_smoke_us06_minimal_artifacts(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_metrics_command_success(mock_rgb_to_hsi):
     """Test metrics command with valid metrics.json."""
     import shutil
@@ -238,7 +238,7 @@ def test_metrics_command_corrupt_json():
     assert "corrupt" in result.stdout.lower() or "invalid" in result.stdout.lower()
     
     shutil.rmtree(temp_dir)
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_roi_mask_success(mock_rgb_to_hsi):
     """Test run with valid ROI mask includes separability in metrics."""
     import shutil
@@ -270,7 +270,7 @@ def test_roi_mask_success(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_no_roi_omits_separability(mock_rgb_to_hsi):
     """Test run without ROI mask omits separability from metrics."""
     import shutil
@@ -324,7 +324,7 @@ def test_invalid_roi_fails():
     
     import shutil
     shutil.rmtree(temp_dir)
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_upscale_success(mock_rgb_to_hsi):
     """Test upscaling generates both baseline and improved artifacts."""
     import shutil
@@ -366,7 +366,7 @@ def test_upscale_success(mock_rgb_to_hsi):
     
     if out_path.exists():
         shutil.rmtree(out_path)
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_no_upscale_omits_artifacts(mock_rgb_to_hsi):
     """Test without upscale flag, no upscaled artifacts are created."""
     import shutil
@@ -402,7 +402,7 @@ def test_no_upscale_omits_artifacts(mock_rgb_to_hsi):
         shutil.rmtree(out_path)
 
 
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_clean_generated_with_roi(mock_rgb_to_hsi):
     """Test clean HSI generated when ROI is provided with partial coverage."""
     import shutil
@@ -452,7 +452,7 @@ def test_clean_generated_with_roi(mock_rgb_to_hsi):
         mask_path.unlink()
 
 
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_clean_skipped_without_roi(mock_rgb_to_hsi):
     """Test clean HSI is skipped when no ROI is provided."""
     import shutil
@@ -490,7 +490,7 @@ def test_clean_skipped_without_roi(mock_rgb_to_hsi):
         shutil.rmtree(out_path)
 
 
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_dataset_command_success(mock_rgb_to_hsi):
     """Test dataset command processes samples successfully."""
     import shutil
@@ -561,7 +561,7 @@ def test_dataset_command_invalid_manifest():
     os.unlink(manifest_path)
 
 
-@patch("hsi_pipeline.cli.rgb_to_hsi", autospec=True)
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
 def test_spectra_pixel_extraction(mock_rgb_to_hsi):
     """Test spectra command extracts pixel signature."""
     import shutil

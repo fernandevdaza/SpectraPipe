@@ -114,7 +114,6 @@ class ExportManager:
         if path.exists() and not self.overwrite:
             raise FileExistsError(f"Artifact already exists: {path}")
         
-        # Validate for NaN/inf
         if np.issubdtype(data.dtype, np.floating):
             nan_count = np.isnan(data).sum()
             inf_count = np.isinf(data).sum()
@@ -125,13 +124,11 @@ class ExportManager:
                     RuntimeWarning
                 )
         
-        # Use NPZ Schema v1 for HSI artifacts
         is_hsi_artifact = artifact_key.startswith("hsi_")
         
         if self.format == "npz" and is_hsi_artifact and data.ndim == 3:
             from .npz_schema import save_npz_v1, NPZMetadata
             
-            # Determine artifact type from key
             artifact_type_map = {
                 "hsi_raw": "raw",
                 "hsi_clean": "clean",
@@ -264,7 +261,7 @@ class ExportManager:
                     path.unlink()
                     removed.append(filename)
                 except OSError:
-                    pass  # Best effort cleanup
+                    pass
         self._exported.clear()
         return removed
     
@@ -300,7 +297,6 @@ class ExportManager:
             Path to exported file.
         """
         if export_as == "ref":
-            # Export as reference JSON
             import hashlib
             ref_data = {
                 "source_path": str(source_path) if source_path else None,
