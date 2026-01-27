@@ -2,9 +2,7 @@
 
 import pytest
 import json
-import numpy as np
 from PIL import Image
-from pathlib import Path
 from typer.testing import CliRunner
 
 from hsi_pipeline.cli import app

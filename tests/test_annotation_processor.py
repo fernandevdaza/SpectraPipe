@@ -4,7 +4,7 @@ import pytest
 import json
 import numpy as np
 from PIL import Image
-from unittest.mock import Mock, MagicMock
+from unittest.mock import Mock
 
 from hsi_pipeline.dataset.annotation_processor import process_sample_annotation, AnnotationError
 from hsi_pipeline.manifest.parser import Sample

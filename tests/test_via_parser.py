@@ -4,7 +4,6 @@ import json
 import pytest
 import numpy as np
 from pathlib import Path
-from PIL import Image
 
 from hsi_pipeline.adapters.via_parser import (
     parse_via_json, via_regions_to_mask, ellipse_to_mask, 

@@ -7,7 +7,7 @@ import json
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 import numpy as np
 from PIL import Image, ImageDraw
