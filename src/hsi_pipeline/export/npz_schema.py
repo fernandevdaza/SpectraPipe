@@ -6,7 +6,6 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, Tuple
 from datetime import datetime
-import warnings
 
 
 SCHEMA_VERSION = 1
