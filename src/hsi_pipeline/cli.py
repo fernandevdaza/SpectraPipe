@@ -19,6 +19,7 @@ app = typer.Typer(
     name="SpectraPipe - HSI Pipeline",
     help="A Hyperspectral Image Processing CLI utility!",
     add_completion=False,
+    no_args_is_help=True,
 )
 console = Console()
 
@@ -507,6 +508,11 @@ def spectra_extract(
         "--pixel", "-p",
         help="Pixel coordinates as 'x,y' (e.g., '120,80')"
     ),
+    pixels: Optional[str] = typer.Option(
+        None,
+        "--pixels",
+        help="Multiple pixels as 'x1,y1;x2,y2' (e.g., '10,10;20,20')"
+    ),
     roi_agg: Optional[str] = typer.Option(
         None,
         "--roi-agg",
@@ -585,6 +591,7 @@ def spectra_extract(
     from .spectra.wavelengths import WavelengthError
     from .spectra.normalize import normalize_signature, validate_normalize_mode
     from .spectra.batch import load_pixels_file, extract_batch, BatchError
+    from .utils.parsing import parse_pixels_inline
     from rich.table import Table
     
     console.print("[bold]Spectral Signature Extraction[/bold]")
@@ -598,6 +605,11 @@ def spectra_extract(
     if export not in ("csv", "json", "both"):
         console.print(f"[red]Error:[/red] Invalid export format '{export}'. Use 'csv', 'json', or 'both'.")
         raise typer.Exit(1)
+        
+    # Validation: Wavelengths
+    if wavelengths_file and (wl_start is not None or wl_step is not None):
+        console.print("[red]Error:[/red] Cannot specify both --wavelengths and --wl-start/--wl-step.")
+        raise typer.Exit(1)
     
     try:
         norm_mode = validate_normalize_mode(normalize)
@@ -605,13 +617,20 @@ def spectra_extract(
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
     
-    modes = sum([pixel is not None, roi_agg is not None, pixels_file is not None])
+    # Validation: Extraction Mode
+    modes = sum([
+        pixel is not None, 
+        pixels is not None,
+        roi_agg is not None, 
+        pixels_file is not None
+    ])
+    
     if modes == 0:
-        console.print("[red]Error:[/red] Specify one of: --pixel, --roi-agg, or --pixels-file")
-        console.print("[yellow]Suggestion:[/yellow] Use --pixel 'x,y' or --roi-agg mean/median or --pixels-file file.csv")
+        console.print("[red]Error:[/red] Specify one of: --pixel, --pixels, --roi-agg, or --pixels-file")
+        console.print("[yellow]Suggestion:[/yellow] Use --pixel 'x,y' or --pixels 'x1,y1;x2,y2' or --roi-agg mean/median or --pixels-file file.csv")
         raise typer.Exit(1)
     if modes > 1:
-        console.print("[red]Error:[/red] Use only one extraction mode: --pixel, --roi-agg, or --pixels-file")
+        console.print("[red]Error:[/red] Use only one extraction mode: --pixel, --pixels, --roi-agg, or --pixels-file")
         raise typer.Exit(1)
     
     try:
@@ -656,15 +675,23 @@ def spectra_extract(
     source_path = str(loaded.path)
     
     # ---- BATCH MODE ----
-    if pixels_file is not None:
-        console.print(f"Mode: Batch (from {pixels_file.name})")
-        
-        try:
-            pixels_list = load_pixels_file(pixels_file)
-            console.print(f"Pixels to extract: {len(pixels_list)}")
-        except BatchError as e:
-            console.print(f"[red]Error:[/red] {e}")
-            raise typer.Exit(1)
+    if pixels_file is not None or pixels is not None:
+        if pixels_file:
+            console.print(f"Mode: Batch (from {pixels_file.name})")
+            try:
+                pixels_list = load_pixels_file(pixels_file)
+            except BatchError as e:
+                console.print(f"[red]Error:[/red] {e}")
+                raise typer.Exit(1)
+        else:
+            console.print("Mode: Batch (inline)")
+            try:
+                pixels_list = parse_pixels_inline(pixels)
+            except ValueError as e:
+                console.print(f"[red]Error:[/red] {e}")
+                raise typer.Exit(1)
+                
+        console.print(f"Pixels to extract: {len(pixels_list)}")
         
         batch_result = extract_batch(loaded.data, pixels_list, artifact, fail_fast=False)
         
