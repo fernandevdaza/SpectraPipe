@@ -63,20 +63,6 @@ class TestExportManager:
         # Schema v1 uses 'cube' key for HSI artifacts
         np.testing.assert_array_almost_equal(loaded["cube"], data)
 
-    def test_export_array_npy(self):
-        """Should export array as NPY and be readable."""
-        exporter = ExportManager(self.temp_dir, format="npy")
-        exporter.prepare_directory()
-        
-        data = np.random.rand(64, 64, 31).astype(np.float32)
-        path = exporter.export_array("hsi_raw", data)
-        
-        assert path.exists()
-        assert path.suffix == ".npy"
-        
-        loaded = np.load(path)
-        np.testing.assert_array_almost_equal(loaded, data)
-
     def test_export_json(self):
         """Should export valid JSON."""
         exporter = ExportManager(self.temp_dir)

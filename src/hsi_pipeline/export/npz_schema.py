@@ -198,21 +198,17 @@ def load_npz_v1(path: Path) -> LoadedNPZ:
         raise NPZSchemaError(f"Failed to load NPZ: {e}")
     
     # Determine which key has the cube
-    is_legacy = False
-    
     if KEY_CUBE in npz:
         cube = npz[KEY_CUBE]
     elif KEY_DATA_LEGACY in npz:
-        cube = npz[KEY_DATA_LEGACY]
-        is_legacy = True
-        warnings.warn(
-            f"Legacy NPZ detected: '{path.name}' uses 'data' instead of 'cube'. "
-            "Re-export to update to schema v1.",
-            DeprecationWarning
+        # Legacy schema - no longer supported
+        raise NPZSchemaError(
+            f"Legacy NPZ schema not supported: '{path.name}' uses 'data' key instead of 'cube'. "
+            f"Re-export with current pipeline version."
         )
     else:
         raise NPZSchemaError(
-            f"Invalid NPZ: missing 'cube' or 'data' key. "
+            f"Invalid NPZ: missing 'cube' key. "
             f"Found keys: {list(npz.keys())}"
         )
     
@@ -253,7 +249,7 @@ def load_npz_v1(path: Path) -> LoadedNPZ:
         metadata=metadata,
         wavelength_nm=wavelength_nm,
         schema_version=schema_version,
-        is_legacy=is_legacy,
+        is_legacy=False,  # Legacy schema now raises error
         path=path
     )
 
@@ -270,10 +266,7 @@ def validate_npz_schema(path: Path) -> bool:
     Raises:
         NPZSchemaError: If validation fails.
     """
-    loaded = load_npz_v1(path)
-    
-    if loaded.is_legacy:
-        raise NPZSchemaError("NPZ uses legacy 'data' key instead of 'cube'")
+    loaded = load_npz_v1(path)  # Will raise for legacy schema
     
     if loaded.schema_version != SCHEMA_VERSION:
         raise NPZSchemaError(

@@ -63,7 +63,6 @@ def load_hsi_artifact(
     base_name = ARTIFACT_FILENAMES[artifact]
     
     npz_path = from_dir / f"{base_name}.npz"
-    npy_path = from_dir / f"{base_name}.npy"
     
     if npz_path.exists():
         try:
@@ -71,18 +70,15 @@ def load_hsi_artifact(
             
             if "cube" in loaded:
                 data = loaded["cube"]
-            # Legacy: use 'data' key
             elif "data" in loaded:
-                import warnings
-                warnings.warn(
-                    f"Legacy NPZ detected: '{npz_path.name}' uses 'data' instead of 'cube'. "
-                    "Re-export to update to schema v1.",
-                    DeprecationWarning
+                # Legacy schema - no longer supported
+                raise HSILoadError(
+                    f"Legacy NPZ schema not supported: '{npz_path.name}' uses 'data' key instead of 'cube'. "
+                    f"Re-export with current pipeline version using 'spectrapipe run'."
                 )
-                data = loaded["data"]
             else:
                 raise HSILoadError(
-                    f"Invalid NPZ: missing 'cube' or 'data' key. Found keys: {list(loaded.keys())}"
+                    f"Invalid NPZ: missing 'cube' key. Found keys: {list(loaded.keys())}"
                 )
             
             wavelength_nm = None
@@ -101,20 +97,9 @@ def load_hsi_artifact(
                 raise
             raise HSILoadError(f"Failed to load NPZ: {e}")
     
-    if npy_path.exists():
-        try:
-            data = np.load(npy_path)
-            return LoadedHSI(
-                data=data,
-                path=npy_path,
-                artifact_type=artifact,
-                shape=data.shape
-            )
-        except Exception as e:
-            raise HSILoadError(f"Failed to load NPY: {e}")
-    
     raise HSINotFoundError(
         f"HSI artifact '{artifact}' not found in {from_dir}. "
-        f"Expected: {base_name}.npz or {base_name}.npy. "
+        f"Expected: {base_name}.npz. "
         f"Run 'spectrapipe run' first to generate outputs."
     )
+

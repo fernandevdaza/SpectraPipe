@@ -108,24 +108,21 @@ class TestLoadNPZv1:
         assert result.schema_version == SCHEMA_VERSION
         assert result.metadata.artifact == "clean"
 
-    def test_loads_legacy_npz_with_warning(self, tmp_path):
-        """Should load legacy NPZ with 'data' key and warn."""
+    def test_legacy_npz_raises_error(self, tmp_path):
+        """Should raise error for legacy NPZ with 'data' key."""
         cube = np.random.rand(32, 32, 31).astype(np.float32)
         path = tmp_path / "legacy.npz"
         np.savez_compressed(path, data=cube)
         
-        with pytest.warns(DeprecationWarning, match="Legacy NPZ"):
-            result = load_npz_v1(path)
-        
-        assert result.is_legacy is True
-        assert result.cube.shape == (32, 32, 31)
+        with pytest.raises(NPZSchemaError, match="legacy"):
+            load_npz_v1(path)
 
     def test_fails_on_missing_keys(self, tmp_path):
-        """Should fail if neither 'cube' nor 'data' present."""
+        """Should fail if 'cube' key not present."""
         path = tmp_path / "invalid.npz"
         np.savez_compressed(path, other_key=np.zeros(10))
         
-        with pytest.raises(NPZSchemaError, match="missing 'cube' or 'data'"):
+        with pytest.raises(NPZSchemaError, match="missing 'cube' key"):
             load_npz_v1(path)
 
     def test_fails_on_wrong_shape(self, tmp_path):
