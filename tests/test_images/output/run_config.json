@@ -1,12 +1,11 @@
 {
   "pipeline_version": "0.1.0",
-  "timestamp": "2026-01-25T20:26:32.561199",
+  "timestamp": "2026-01-27T08:24:37.592211",
   "input_path": "/home/fernandev/Coding/SpectraPipe/tests/test_images/tiny.png",
   "config_path": "/home/fernandev/Coding/SpectraPipe/configs/defaults.yaml",
   "output_dir": "/home/fernandev/Coding/SpectraPipe/tests/test_images/output",
   "fitting": {
     "policy": "pad_to_multiple",
-    "multiple": 32,
     "padding": [
       15,
       16,
@@ -22,7 +21,6 @@
       32
     ]
   },
-  "ensemble_enabled": true,
   "hsi_shape": [
     1,
     1,
