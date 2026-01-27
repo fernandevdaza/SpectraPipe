@@ -74,13 +74,21 @@ def run(
 ):
     """Run the full HSI processing pipeline."""
     from .roi.loader import ROILoadError, ROIValidationError
+    from .pipeline.run import merge_cli_overrides
     
     cfg = load_config(config)
     
-    if out is None:
-        out = input.parent / "output"
+    # Apply CLI overrides (CLI > config.yaml > defaults)
+    cfg = merge_cli_overrides(
+        cfg,
+        no_ensemble=no_ensemble,
+        upscale_factor=upscale_factor,
+    )
     
-    exporter = ExportManager(out_dir=out, format="npz", overwrite=True)
+    if out is None:
+        out = input.parent / cfg.export.default_dir
+    
+    exporter = ExportManager(out_dir=out, format="npz", overwrite=cfg.export.overwrite)
     
     console.print(f"Loading image: {input}")
     
@@ -95,12 +103,17 @@ def run(
         
         console.print("Converting RGB → HSI using MST++...")
         
+        # Determine upscale factor (from CLI or config)
+        effective_upscale = upscale_factor if upscale_factor else (
+            cfg.upscaling.factor if cfg.upscaling.enabled else None
+        )
+        
         pipeline_input = PipelineInput(
             rgb=rgb,
             config=cfg,
             roi_mask_path=roi_mask,
-            upscale_factor=upscale_factor,
-            use_ensemble=not no_ensemble,
+            upscale_factor=effective_upscale,
+            use_ensemble=cfg.model.ensemble,
         )
         
         result = orchestrator.run(pipeline_input)
@@ -290,8 +303,6 @@ def dataset_run(
         console.print(f"[red]Error:[/red] --on-error must be 'continue' or 'abort', got '{on_error}'")
         raise typer.Exit(1)
     
-    policy = OnErrorPolicy.CONTINUE if on_error == "continue" else OnErrorPolicy.ABORT
-    
     try:
         parsed_manifest = parse_manifest(manifest)
     except ManifestNotFoundError as e:
@@ -312,8 +323,30 @@ def dataset_run(
     console.print(f"On-error policy: {on_error}")
     console.print("")
     
+    from .pipeline.run import merge_cli_overrides
+    
     cfg = load_config(config)
-    use_ensemble = not no_ensemble
+    
+    # Apply CLI overrides (CLI > config.yaml > defaults)
+    # Note: on_error/on_annot_error CLI flags override config if provided
+    cfg = merge_cli_overrides(
+        cfg,
+        no_ensemble=no_ensemble,
+        upscale_factor=upscale_factor,
+        on_error=on_error if on_error != cfg.dataset.on_error else None,
+        on_annot_error=on_annot_error if on_annot_error != cfg.dataset.on_annot_error else None,
+    )
+    
+    # Use effective values from merged config
+    effective_on_error = cfg.dataset.on_error
+    effective_on_annot_error = cfg.dataset.on_annot_error
+    effective_upscale = upscale_factor if upscale_factor else (
+        cfg.upscaling.factor if cfg.upscaling.enabled else None
+    )
+    
+    # Create policy from effective value
+    policy = OnErrorPolicy.CONTINUE if effective_on_error == "continue" else OnErrorPolicy.ABORT
+    
     coco_cache = {}  # Cache for parsed COCO datasets
     orchestrator = PipelineOrchestrator()
     
@@ -344,7 +377,7 @@ def dataset_run(
                 )
                 # Note: annotation generates mask file, not used directly with orchestrator
             except AnnotationError as e:
-                if on_annot_error == "abort":
+                if effective_on_annot_error == "abort":
                     raise
                 else:
                     console.print(f"  [yellow]Annotation warning:[/yellow] {e}")
@@ -354,8 +387,8 @@ def dataset_run(
             rgb=rgb,
             config=cfg,
             roi_mask_path=roi_mask_path,
-            upscale_factor=upscale_factor,
-            use_ensemble=use_ensemble,
+            upscale_factor=effective_upscale,
+            use_ensemble=cfg.model.ensemble,
         )
         
         result = orchestrator.run(pipeline_input)
