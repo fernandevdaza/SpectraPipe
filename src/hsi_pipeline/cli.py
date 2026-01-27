@@ -71,10 +71,26 @@ def run(
         min=2,
         max=8
     ),
+    annotation: Optional[Path] = typer.Option(
+        None,
+        "--annotation", "-a",
+        help="Path to annotation file (VOC, COCO, VIA) to generate ROI mask",
+        exists=True,
+        file_okay=True,
+        readable=True,
+        resolve_path=True
+    ),
+    annotation_type: str = typer.Option(
+        "via",
+        "--annotation-type",
+        help="Type of annotation file: 'voc', 'coco', 'via'",
+        show_default=True
+    ),
 ):
     """Run the full HSI processing pipeline."""
     from .roi.loader import ROILoadError, ROIValidationError
     from .pipeline.run import merge_cli_overrides
+    from .dataset.annotation_processor import process_single_annotation, AnnotationError
     
     cfg = load_config(config)
     
@@ -99,6 +115,30 @@ def run(
     try:
         exporter.prepare_directory()
         
+        # Handle annotation if provided
+        effective_roi_mask = roi_mask
+        
+        if annotation:
+            if roi_mask:
+                console.print("[red]Error:[/red] Cannot specify both --roi-mask and --annotation.")
+                raise typer.Exit(1)
+            
+            console.print(f"Processing annotation: {annotation} (type={annotation_type})")
+            try:
+                # Generate mask from annotation
+                _, mask_path = process_single_annotation(
+                    image_path=input,
+                    annotation_path=annotation,
+                    annotation_type=annotation_type,
+                    output_dir=out,
+                    image_filename=input.name
+                )
+                effective_roi_mask = mask_path
+                console.print(f"Generated ROI mask from annotation: {mask_path}")
+            except AnnotationError as e:
+                console.print(f"[red]Annotation Error:[/red] {e}")
+                raise typer.Exit(1)
+        
         orchestrator = PipelineOrchestrator()
         
         console.print("Converting RGB → HSI using MST++...")
@@ -111,7 +151,7 @@ def run(
         pipeline_input = PipelineInput(
             rgb=rgb,
             config=cfg,
-            roi_mask_path=roi_mask,
+            roi_mask_path=effective_roi_mask,
             upscale_factor=effective_upscale,
             use_ensemble=cfg.model.ensemble,
         )
