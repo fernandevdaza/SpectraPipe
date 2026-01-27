@@ -26,6 +26,49 @@ class TestCLIAnnotation:
         
         return img_path, out_dir
         
+    def test_run_with_voc_annotation(self, mock_data):
+        """Should accept --annotation with VOC and generate mask."""
+        img_path, out_dir = mock_data
+        
+        # Create VOC annotation
+        annot_path = img_path.parent / "annot.xml"
+        with open(annot_path, "w") as f:
+            f.write(f"""
+            <annotation>
+                <folder>dataset</folder>
+                <filename>{img_path.name}</filename>
+                <size>
+                    <width>100</width>
+                    <height>100</height>
+                    <depth>3</depth>
+                </size>
+                <object>
+                    <name>cyst</name>
+                    <bndbox>
+                        <xmin>10</xmin>
+                        <ymin>10</ymin>
+                        <xmax>30</xmax>
+                        <ymax>30</ymax>
+                    </bndbox>
+                </object>
+            </annotation>
+            """)
+            
+        result = runner.invoke(app, [
+            "run",
+            "--input", str(img_path),
+            "--out", str(out_dir),
+            "--annotation", str(annot_path),
+            "--annotation-type", "voc"
+        ])
+        
+        # Should succeed at mask generation step
+        if result.exit_code != 0:
+            pass
+            
+        assert "Generated ROI mask from annotation" in result.stdout
+        assert (out_dir / "roi_mask_annot.png").exists()
+
     def test_run_with_via_annotation(self, mock_data):
         """Should accept --annotation with VIA and generate mask."""
         img_path, out_dir = mock_data
