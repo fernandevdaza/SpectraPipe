@@ -406,17 +406,27 @@ def dataset_run(
         
         # Determine ROI mask path (from sample or annotation)
         roi_mask_path = sample.roi_mask_resolved
+        roi_source = "mask_file" if roi_mask_path else "none"
         annotation_roi_path = None
         
         # Process annotation if present (generates ROI from bboxes)
         if sample.annotation and sample.annotation_type:
             from .dataset.annotation_processor import process_sample_annotation, AnnotationError
             
+            # Check for conflict with explicit ROI mask
+            if roi_mask_path:
+                console.print(f"  [yellow]Warning:[/yellow] Sample {sample.id}: Both annotation and roi_mask specified. Using roi_mask ({roi_mask_path}).")
+            
             try:
                 mask, annotation_roi_path = process_sample_annotation(
                     sample, sample_out, coco_dataset_cache=coco_cache
                 )
-                # Note: annotation generates mask file, not used directly with orchestrator
+                
+                # Use generated mask if no explicit mask provided
+                if not roi_mask_path and annotation_roi_path:
+                    roi_mask_path = annotation_roi_path
+                    roi_source = "annotation"
+                    
             except AnnotationError as e:
                 if effective_on_annot_error == "abort":
                     raise
@@ -446,7 +456,7 @@ def dataset_run(
         )
         
         # Add sample-specific metadata to run_config
-        if annotation_roi_path:
+        if annotation_roi_path or roi_source != "none":
             # Re-export run_config with annotation info
             import json
             run_config_path = sample_out / "run_config.json"
@@ -454,8 +464,10 @@ def dataset_run(
                 with open(run_config_path) as f:
                     run_config_data = json.load(f)
                 run_config_data["sample_id"] = sample.id
-                run_config_data["annotation_roi_path"] = str(annotation_roi_path)
-                run_config_data["annotation_type"] = sample.annotation_type
+                if annotation_roi_path:
+                    run_config_data["annotation_roi_path"] = str(annotation_roi_path)
+                    run_config_data["annotation_type"] = sample.annotation_type
+                run_config_data["roi_source"] = roi_source
                 with open(run_config_path, "w") as f:
                     json.dump(run_config_data, f, indent=2)
     
