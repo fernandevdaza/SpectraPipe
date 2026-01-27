@@ -1,25 +1,32 @@
-# HSI Pipeline Configuration
-
-data:
-
-
-pipeline:
+# SpectraPipe Configuration - v2.0
+# CLI flags override these values
 
 model:
   name: mst_plus_plus
   weights_path: src/hsi_pipeline/weights/model_zoo/mst_plus_plus.pth
-  device: cuda  # can be auto, cuda, or cpu
-  ensemble_mode: mean  # can be mean or median for test-time augmentation
+  device: auto  # auto, cuda, cpu
+  ensemble: true
+  ensemble_mode: mean  # mean, median
   n_bands: 31
-  wavelength_range: [400, 700]  # in nm
-
-bgclean:
-
-upscale:
 
 fitting:
   multiple: 32
   policy: pad_to_multiple
 
-output:
-  runs_dir: runs
+upscaling:
+  enabled: false
+  factor: 2
+  methods: [baseline, improved]
+
+export:
+  format: npz  # npz only
+  overwrite: true  # true, false
+  default_dir: output  # Default output dir when --out not specified
+
+spectra:
+  normalize: none  # none, minmax, zscore, l2
+  export_format: json  # json, csv, both
+
+dataset:
+  on_error: continue  # continue, abort
+  on_annot_error: continue  # continue, abort
