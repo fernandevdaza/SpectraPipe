@@ -485,6 +485,10 @@ def dataset_run(
             if "meta" not in run_config_data:
                 run_config_data["meta"] = {}
                 
+            # Ensure config section exists
+            if "config" not in run_config_data:
+                run_config_data["config"] = cfg.to_dict()
+                
             run_config_data["meta"]["sample_id"] = sample.id
             if annotation_roi_path:
                 run_config_data["meta"]["annotation_roi_path"] = str(annotation_roi_path)
