@@ -131,7 +131,7 @@ export:
 If you use SpectraPipe in your research, please cite:
 
 ```bibtex
-@software{spectrapipe2024,
+@software{spectrapipe2026,
   author = {Said Fernando Daza Peña},
   title = {SpectraPipe: A Reproducible HSI-to-RGB Reconstruction Pipeline},
   year = {2026},
