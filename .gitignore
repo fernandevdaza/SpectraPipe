@@ -3,12 +3,12 @@ runs
 __pycache__
 out
 READMES
-docs
+tests/test_images/dataset_small/rgb/output/*
 tests/test_images/dataset_small/rgb/output/*
 tests/test_images/output/*
 *.pth
 external/
 docs
 .pytest_cache
-dist
 .ruff_cache
+dist
