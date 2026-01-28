@@ -34,7 +34,7 @@ class TestReproducibility:
             "--out", str(run1_out),
             "--upscale-factor", "2",
             "--no-ensemble"
-        ])
+        ], catch_exceptions=False)
         assert result1.exit_code == 0, (
             f"STDOUT/ERR:\n{result1.output}\n"
             f"EXC:\n{repr(result1.exception)}"
@@ -60,7 +60,7 @@ class TestReproducibility:
             "--input", str(img2),
             "--out", str(run2_out),
             "--config", str(config1_path)  # Loading JSON!
-        ])
+        ], catch_exceptions=False)
         assert result2.exit_code == 0, (
             f"STDOUT/ERR:\n{result2.output}\n"
             f"EXC:\n{repr(result2.exception)}"
