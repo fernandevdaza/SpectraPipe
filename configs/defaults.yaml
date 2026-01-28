@@ -22,6 +22,7 @@ export:
   format: npz  # npz only
   overwrite: true  # true, false
   default_dir: output  # Default output dir when --out not specified
+  include_wavelengths: false  # Include wavelength_nm in NPZ (Schema v1)
 
 spectra:
   normalize: none  # none, minmax, zscore, l2

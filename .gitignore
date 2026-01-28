@@ -4,5 +4,10 @@ __pycache__
 out
 READMES
 tests/test_images/dataset_small/rgb/output/*
+tests/test_images/dataset_small/rgb/output/*
 tests/test_images/output/*
+*.pth
+external/
 docs
+.pytest_cache
+.ruff_cache

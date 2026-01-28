@@ -63,7 +63,14 @@ def export_pipeline_output(
         console: Console for logging.
     """
     # Export raw HSI
-    exporter.export_array("hsi_raw", output.hsi_raw)
+    # Export raw HSI
+    wavelength_nm = None
+    if config_dict.get("export", {}).get("include_wavelengths", False):
+        # Generate default wavelengths (400-700nm, 31 bands) if enabled
+        # TODO: Retrieve actual wavelengths from model if available in future
+        wavelength_nm = np.linspace(400, 700, 31).astype(np.float32)
+
+    exporter.export_array("hsi_raw", output.hsi_raw, wavelength_nm=wavelength_nm)
     
     # Export clean HSI if available
     if output.hsi_clean is not None:

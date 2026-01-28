@@ -1,4 +1,4 @@
-"""Command-line interface for SpectraPipe - HSI Pipeline."""
+"""Command-line interface for SpectraPipe."""
 
 from pathlib import Path
 from typing import Optional
@@ -16,14 +16,17 @@ from .cli_helpers import load_image, export_pipeline_output, log_pipeline_progre
 PIPELINE_VERSION = "0.1.0"
 
 app = typer.Typer(
-    name="SpectraPipe - HSI Pipeline",
-    help="A Hyperspectral Image Processing CLI utility!",
+    name="SpectraPipe",
+    help="A Reproducible HSI-to-RGB Reconstruction Pipeline",
     add_completion=False,
     no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
 )
 console = Console()
 
-@app.command()
+@app.command(
+    no_args_is_help=True,
+)
 def run(
     input: Path = typer.Option(
         ...,
@@ -214,10 +217,8 @@ def run(
         console.print("[yellow]Suggestion:[/yellow] Check input image and model configuration.")
         raise typer.Exit(1)
     
-    exported = exporter.list_exported()
-    console.print(f"\n[bold]Exported artifacts ({len(exported)}):[/bold]")
-    for artifact in exported:
-        console.print(f"  • {artifact}")
+    
+    # Exported artifacts summary is already logged by exporter.log_export_summary(console)
     
     table = Table(title="SpectraPipe Execution Summary", show_header=True, header_style="bold magenta")
     table.add_column("Metric", style="cyan")
@@ -237,7 +238,9 @@ def run(
     console.print("[green]✓[/green] Pipeline finished successfully.")
 
 
-@app.command()
+@app.command(
+    no_args_is_help=True,
+)
 def metrics(
     from_dir: Path = typer.Option(
         ...,
@@ -281,7 +284,7 @@ def metrics(
     console.print("[green]✓[/green] Metrics loaded successfully.")
 
 
-@app.command("dataset")
+@app.command("dataset", no_args_is_help=True)
 def dataset_run(
     manifest: Path = typer.Option(
         ...,
@@ -527,7 +530,7 @@ def dataset_run(
         raise typer.Exit(1)
 
 
-@app.command("spectra")
+@app.command("spectra", no_args_is_help=True)
 def spectra_extract(
     from_dir: Path = typer.Option(
         ...,

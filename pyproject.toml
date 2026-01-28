@@ -1,7 +1,7 @@
 [project]
-name = "spectra-pipe"
+name = "spectrapipe"
 version = "0.1.0"
-description = "A Hyperspectral Image Processing CLI Utility!"
+description = "A Reproducible HSI-to-RGB Reconstruction Pipeline"
 authors = [
     {name = "fernandev",email = "fernando.daza.18@outlook.com"}
 ]

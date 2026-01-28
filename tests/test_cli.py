@@ -660,4 +660,85 @@ def test_spectra_artifact_not_found():
     assert result.exit_code != 0
     assert "not found" in result.stdout.lower() or "Error" in result.stdout
     
+
     shutil.rmtree(out_path)
+
+
+@patch("hsi_pipeline.pipeline.orchestrator.rgb_to_hsi", autospec=True)
+def test_dataset_command_with_annotation(mock_rgb_to_hsi):
+    """TC-DS-ROI-01: Test dataset command uses annotation to generate ROI and applies it."""
+    import shutil
+    import json
+    from PIL import Image
+    
+    # Mock inference
+    mock_rgb_to_hsi.return_value = np.ones((64, 64, 31), dtype=np.float32)
+    
+    # Setup temp environment
+    import tempfile
+    temp_dir = Path(tempfile.mkdtemp())
+    img_path = temp_dir / "sample.png"
+    Image.new('RGB', (100, 100)).save(img_path)
+    
+    # Create VOC annotation
+    annot_path = temp_dir / "sample.xml"
+    with open(annot_path, "w") as f:
+        f.write(f"""
+        <annotation>
+            <folder>dataset</folder>
+            <filename>{img_path.name}</filename>
+            <size><width>100</width><height>100</height><depth>3</depth></size>
+            <object>
+                <name>obj</name>
+                <bndbox><xmin>0</xmin><ymin>0</ymin><xmax>50</xmax><ymax>50</ymax></bndbox>
+            </object>
+        </annotation>
+        """)
+    
+    # Create manifest
+    manifest_path = temp_dir / "manifest.json"
+    manifest_data = {
+        "root": str(temp_dir),
+        "samples": [
+            {
+                "id": "s1",
+                "image": "sample.png",
+                "annotation": "sample.xml",
+                "annotation_type": "voc"
+            }
+        ]
+    }
+    with open(manifest_path, "w") as f:
+        json.dump(manifest_data, f)
+        
+    out_path = temp_dir / "out"
+    
+    try:
+        result = runner.invoke(app, [
+            "dataset",
+            "--manifest", str(manifest_path),
+            "--out", str(out_path)
+        ])
+        
+        assert result.exit_code == 0, f"Failed: {result.stdout}"
+        
+        # Verify s1 output
+        s1_dir = out_path / "s1"
+        assert s1_dir.exists()
+        
+        # verify run_config has ROI source metadata
+        with open(s1_dir / "run_config.json") as f:
+            rc = json.load(f)
+        assert rc["meta"]["roi_source"] == "annotation"
+        assert "annotation_roi_path" in rc["meta"]
+        
+        # Verify clean artifact generated (implies ROI was used)
+        assert (s1_dir / "hsi_clean_full.npz").exists()
+        
+        # Verify metrics have separability
+        with open(s1_dir / "metrics.json") as f:
+            metrics = json.load(f)
+        assert "clean_separability" in metrics
+        
+    finally:
+        shutil.rmtree(temp_dir)
