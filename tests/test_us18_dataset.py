@@ -4,7 +4,6 @@ import pytest
 import json
 import yaml
 from PIL import Image
-from pathlib import Path
 from typer.testing import CliRunner
 
 from hsi_pipeline.cli import app
@@ -27,7 +26,7 @@ class TestUS18DatasetAnnotation:
         annot1 = dataset_dir / "sample1.json"
         with open(annot1, "w") as f:
             json.dump({
-                f"sample1.jpg123": {
+                "sample1.jpg123": {
                     "filename": "sample1.jpg",
                     "regions": [
                         {"shape_attributes": {"name": "rect", "x": 0, "y": 0, "width": 50, "height": 50}, "region_attributes": {}}
@@ -42,7 +41,7 @@ class TestUS18DatasetAnnotation:
         annot2 = dataset_dir / "sample2.json"
         with open(annot2, "w") as f:
             json.dump({
-                f"sample2.jpg123": {
+                "sample2.jpg123": {
                     "filename": "sample2.jpg",
                     "regions": [{"shape_attributes": {"name": "rect", "x": 0, "y": 0, "width": 50, "height": 50}, "region_attributes": {}}]
                 }
@@ -144,7 +143,7 @@ class TestUS18DatasetAnnotation:
         """Sample 3 should have roi_source: none."""
         manifest_path, _, output_dir = mock_dataset
         
-        result = runner.invoke(app, [
+        runner.invoke(app, [
             "dataset",
             "--manifest", str(manifest_path),
             "--out", str(output_dir)
