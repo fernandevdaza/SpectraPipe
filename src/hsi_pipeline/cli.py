@@ -456,20 +456,22 @@ def dataset_run(
         )
         
         # Add sample-specific metadata to run_config
-        if annotation_roi_path or roi_source != "none":
-            # Re-export run_config with annotation info
-            import json
-            run_config_path = sample_out / "run_config.json"
-            if run_config_path.exists():
-                with open(run_config_path) as f:
-                    run_config_data = json.load(f)
-                run_config_data["sample_id"] = sample.id
-                if annotation_roi_path:
-                    run_config_data["annotation_roi_path"] = str(annotation_roi_path)
-                    run_config_data["annotation_type"] = sample.annotation_type
-                run_config_data["roi_source"] = roi_source
-                with open(run_config_path, "w") as f:
-                    json.dump(run_config_data, f, indent=2)
+        # Always update run_config with annotation/ROI info
+        import json
+        run_config_path = sample_out / "run_config.json"
+        if run_config_path.exists():
+            with open(run_config_path) as f:
+                run_config_data = json.load(f)
+            
+            run_config_data["sample_id"] = sample.id
+            if annotation_roi_path:
+                run_config_data["annotation_roi_path"] = str(annotation_roi_path)
+                run_config_data["annotation_type"] = sample.annotation_type
+            
+            run_config_data["roi_source"] = roi_source
+            
+            with open(run_config_path, "w") as f:
+                json.dump(run_config_data, f, indent=2)
     
     report = run_dataset(
         manifest=parsed_manifest,
