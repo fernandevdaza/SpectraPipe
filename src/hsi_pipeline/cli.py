@@ -1,4 +1,4 @@
-"""Command-line interface for SpectraPipe - HSI Pipeline."""
+"""Command-line interface for SpectraPipe."""
 
 from pathlib import Path
 from typing import Optional
@@ -16,8 +16,8 @@ from .cli_helpers import load_image, export_pipeline_output, log_pipeline_progre
 PIPELINE_VERSION = "0.1.0"
 
 app = typer.Typer(
-    name="SpectraPipe - HSI Pipeline",
-    help="A Hyperspectral Image Processing CLI utility!",
+    name="SpectraPipe",
+    help="A Reproducible HSI-to-RGB Reconstruction Pipeline",
     add_completion=False,
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
