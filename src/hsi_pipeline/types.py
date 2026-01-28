@@ -41,6 +41,7 @@ class ExportConfig:
     format: Literal["npz"] = "npz"
     overwrite: bool = True
     default_dir: str = "output"  # Default output dir when --out not specified
+    include_wavelengths: bool = False  # Schema v1: Include wavelength_nm in NPZ
 
 
 @dataclass

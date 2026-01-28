@@ -1,7 +1,7 @@
 {
   "meta": {
     "pipeline_version": "0.1.0",
-    "timestamp": "2026-01-27T20:48:46.386110",
+    "timestamp": "2026-01-28T13:03:42.715155",
     "input_path": "/home/fernandev/Coding/SpectraPipe/tests/test_images/tiny.png",
     "config_path": "/home/fernandev/Coding/SpectraPipe/configs/defaults.yaml",
     "output_dir": "/home/fernandev/Coding/SpectraPipe/tests/test_images/output",
