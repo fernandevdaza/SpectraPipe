@@ -101,6 +101,7 @@ class TestExportManager:
         exporter.prepare_directory()
         
         path = exporter.export_run_config(
+            config_dict={},
             input_path="/path/to/input.png",
             config_path="/path/to/config.yaml",
             fitting_info={"policy": "pad_to_multiple", "multiple": 32},
@@ -110,10 +111,12 @@ class TestExportManager:
         with open(path) as f:
             config = json.load(f)
         
-        assert config["pipeline_version"] == "0.1.0"
-        assert "timestamp" in config
-        assert "fitting" in config
-        assert config["fitting"]["policy"] == "pad_to_multiple"
+        assert config["meta"]["pipeline_version"] == "0.1.0"
+        assert "timestamp" in config["meta"]
+        assert "fitting" in config["meta"]
+        assert config["meta"]["fitting"]["policy"] == "pad_to_multiple"
+        assert config["meta"]["fitting"]["multiple"] == 32
+        assert "config" in config
 
     def test_list_exported(self):
         """Should track exported artifacts."""

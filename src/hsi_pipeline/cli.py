@@ -169,6 +169,7 @@ def run(
             exporter=exporter,
             input_path=input,
             config_path=config,
+            config_dict=cfg.to_dict(),
             pipeline_version=PIPELINE_VERSION,
             console=console,
         )
@@ -451,6 +452,7 @@ def dataset_run(
             exporter=exporter,
             input_path=image_path,
             config_path=config,
+            config_dict=cfg.to_dict(),
             pipeline_version=PIPELINE_VERSION,
             console=console,
         )
@@ -458,20 +460,34 @@ def dataset_run(
         # Add sample-specific metadata to run_config
         # Always update run_config with annotation/ROI info
         import json
+        import os
         run_config_path = sample_out / "run_config.json"
+        
+        # Ensure directory exists (defensive, as requested)
+        os.makedirs(os.path.dirname(run_config_path), exist_ok=True)
+        
+        run_config_data = {}
         if run_config_path.exists():
-            with open(run_config_path) as f:
-                run_config_data = json.load(f)
+            try:
+                with open(run_config_path) as f:
+                    run_config_data = json.load(f)
+            except json.JSONDecodeError:
+                # If corrupt, overwrite
+                pass
+        
+        # Ensure meta section exists
+        if "meta" not in run_config_data:
+            run_config_data["meta"] = {}
             
-            run_config_data["sample_id"] = sample.id
-            if annotation_roi_path:
-                run_config_data["annotation_roi_path"] = str(annotation_roi_path)
-                run_config_data["annotation_type"] = sample.annotation_type
-            
-            run_config_data["roi_source"] = roi_source
-            
-            with open(run_config_path, "w") as f:
-                json.dump(run_config_data, f, indent=2)
+        run_config_data["meta"]["sample_id"] = sample.id
+        if annotation_roi_path:
+            run_config_data["meta"]["annotation_roi_path"] = str(annotation_roi_path)
+            run_config_data["meta"]["annotation_type"] = sample.annotation_type
+        
+        run_config_data["meta"]["roi_source"] = roi_source
+        
+        with open(run_config_path, "w") as f:
+            json.dump(run_config_data, f, indent=2)
     
     report = run_dataset(
         manifest=parsed_manifest,

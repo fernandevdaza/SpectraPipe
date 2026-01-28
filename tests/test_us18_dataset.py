@@ -101,8 +101,8 @@ class TestUS18DatasetAnnotation:
         assert (s1_out / "roi_mask_annot.png").exists()
         
         s1_config = json.loads((s1_out / "run_config.json").read_text())
-        assert s1_config.get("roi_source") == "annotation"
-        assert "annotation_roi_path" in s1_config
+        assert s1_config["meta"].get("roi_source") == "annotation"
+        assert "annotation_roi_path" in s1_config["meta"]
 
     def test_dataset_prioritizes_explicit_mask_and_warns(self, mock_dataset):
         """Sample 2 (Both) should use explicit mask and warn."""
@@ -137,7 +137,7 @@ class TestUS18DatasetAnnotation:
         
         # BUT config should say mask_file used
         s2_config = json.loads((s2_out / "run_config.json").read_text())
-        assert s2_config.get("roi_source") == "mask_file"
+        assert s2_config["meta"].get("roi_source") == "mask_file"
         
     def test_dataset_no_mask(self, mock_dataset):
         """Sample 3 should have roi_source: none."""
@@ -151,4 +151,4 @@ class TestUS18DatasetAnnotation:
         
         s3_out = output_dir / "sample3"
         s3_config = json.loads((s3_out / "run_config.json").read_text())
-        assert s3_config.get("roi_source") == "none"
+        assert s3_config["meta"].get("roi_source") == "none"

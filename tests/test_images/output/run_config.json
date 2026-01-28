@@ -1,29 +1,66 @@
 {
-  "pipeline_version": "0.1.0",
-  "timestamp": "2026-01-27T17:21:01.591722",
-  "input_path": "/home/fernandev/Coding/SpectraPipe/tests/test_images/tiny.png",
-  "config_path": "/home/fernandev/Coding/SpectraPipe/configs/defaults.yaml",
-  "output_dir": "/home/fernandev/Coding/SpectraPipe/tests/test_images/output",
-  "fitting": {
-    "policy": "pad_to_multiple",
-    "padding": [
-      15,
-      16,
-      15,
-      16
-    ],
-    "input_shape_original": [
+  "meta": {
+    "pipeline_version": "0.1.0",
+    "timestamp": "2026-01-27T20:41:00.700303",
+    "input_path": "/home/fernandev/Coding/SpectraPipe/tests/test_images/tiny.png",
+    "config_path": "/home/fernandev/Coding/SpectraPipe/configs/defaults.yaml",
+    "output_dir": "/home/fernandev/Coding/SpectraPipe/tests/test_images/output",
+    "fitting": {
+      "policy": "pad_to_multiple",
+      "padding": [
+        15,
+        16,
+        15,
+        16
+      ],
+      "input_shape_original": [
+        1,
+        1
+      ],
+      "input_shape_fitted": [
+        32,
+        32
+      ]
+    },
+    "hsi_shape": [
       1,
-      1
-    ],
-    "input_shape_fitted": [
-      32,
-      32
+      1,
+      31
     ]
   },
-  "hsi_shape": [
-    1,
-    1,
-    31
-  ]
+  "config": {
+    "model": {
+      "name": "mst_plus_plus",
+      "weights_path": "src/hsi_pipeline/weights/model_zoo/mst_plus_plus.pth",
+      "device": "auto",
+      "ensemble": true,
+      "ensemble_mode": "mean",
+      "n_bands": 31
+    },
+    "fitting": {
+      "multiple": 32,
+      "policy": "pad_to_multiple"
+    },
+    "upscaling": {
+      "enabled": false,
+      "factor": 2,
+      "methods": [
+        "baseline",
+        "improved"
+      ]
+    },
+    "export": {
+      "format": "npz",
+      "overwrite": true,
+      "default_dir": "output"
+    },
+    "spectra": {
+      "normalize": "none",
+      "export_format": "json"
+    },
+    "dataset": {
+      "on_error": "continue",
+      "on_annot_error": "continue"
+    }
+  }
 }
