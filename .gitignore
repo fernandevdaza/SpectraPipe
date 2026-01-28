@@ -10,6 +10,5 @@ tests/test_images/output/*
 external/
 docs
 .pytest_cache
-dist
 .ruff_cache
-
+dist
