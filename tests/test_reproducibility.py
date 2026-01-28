@@ -35,7 +35,10 @@ class TestReproducibility:
             "--upscale-factor", "2",
             "--no-ensemble"
         ])
-        assert result1.exit_code == 0
+        assert result1.exit_code == 0, (
+            f"STDOUT/ERR:\n{result1.output}\n"
+            f"EXC:\n{repr(result1.exception)}"
+        )
         
         # Verify Run 1 config
         config1_path = run1_out / "run_config.json"
@@ -58,7 +61,10 @@ class TestReproducibility:
             "--out", str(run2_out),
             "--config", str(config1_path)  # Loading JSON!
         ])
-        assert result2.exit_code == 0
+        assert result2.exit_code == 0, (
+            f"STDOUT/ERR:\n{result2.output}\n"
+            f"EXC:\n{repr(result2.exception)}"
+        )
         
         # Verify Run 2 adhered to config
         config2_path = run2_out / "run_config.json"
