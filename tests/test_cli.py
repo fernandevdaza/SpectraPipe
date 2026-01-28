@@ -114,10 +114,10 @@ def test_metadata_written(mock_rgb_to_hsi):
     with open(metadata_path) as f:
         metadata = json.load(f)
     
-    assert "fitting" in metadata
-    assert "input_shape_original" in metadata["fitting"]
-    assert "input_shape_fitted" in metadata["fitting"]
-    assert metadata["fitting"]["policy"] == "pad_to_multiple"
+    assert "fitting" in metadata["meta"]
+    assert "input_shape_original" in metadata["meta"]["fitting"]
+    assert "input_shape_fitted" in metadata["meta"]["fitting"]
+    assert metadata["meta"]["fitting"]["policy"] == "pad_to_multiple"
     
     if out_path.exists():
         shutil.rmtree(out_path)
@@ -146,8 +146,8 @@ def test_smoke_oddsize_image(mock_rgb_to_hsi):
     import json
     with open(out_path / "run_config.json") as f:
         metadata = json.load(f)
-    assert "input_shape_original" in metadata["fitting"]
-    assert "input_shape_fitted" in metadata["fitting"]
+    assert "input_shape_original" in metadata["meta"]["fitting"]
+    assert "input_shape_fitted" in metadata["meta"]["fitting"]
     
     if out_path.exists():
         shutil.rmtree(out_path)

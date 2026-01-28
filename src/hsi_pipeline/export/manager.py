@@ -208,6 +208,7 @@ class ExportManager:
     
     def export_run_config(
         self,
+        config_dict: dict,
         input_path: str,
         config_path: str,
         fitting_info: dict,
@@ -217,6 +218,7 @@ class ExportManager:
         """Export standardized run_config.json.
         
         Args:
+            config_dict: Complete pipeline configuration dictionary.
             input_path: Path to input image.
             config_path: Path to config YAML.
             fitting_info: Input fitting metadata.
@@ -226,7 +228,7 @@ class ExportManager:
         Returns:
             Path to run_config.json.
         """
-        config = {
+        meta = {
             "pipeline_version": pipeline_version,
             "timestamp": datetime.now().isoformat(),
             "input_path": str(input_path),
@@ -236,9 +238,14 @@ class ExportManager:
         }
         
         if extra:
-            config.update(extra)
+            meta.update(extra)
+            
+        data = {
+            "meta": meta,
+            "config": config_dict
+        }
         
-        return self.export_json("run_config", config)
+        return self.export_json("run_config", data)
     
     def list_exported(self) -> list[str]:
         """Return list of exported artifact filenames."""

@@ -169,6 +169,7 @@ def run(
             exporter=exporter,
             input_path=input,
             config_path=config,
+            config_dict=cfg.to_dict(),
             pipeline_version=PIPELINE_VERSION,
             console=console,
         )
@@ -395,69 +396,108 @@ def dataset_run(
         """Process a single sample using the orchestrator."""
         from PIL import Image, UnidentifiedImageError
         
-        image_path = sample.image_resolved
-        if not image_path or not image_path.exists():
-            raise FileNotFoundError(f"Image not found: {sample.image}")
-        
-        try:
-            rgb = np.array(Image.open(image_path).convert('RGB'))
-        except UnidentifiedImageError:
-            raise ValueError(f"Invalid image format: {image_path}")
-        
-        # Determine ROI mask path (from sample or annotation)
-        roi_mask_path = sample.roi_mask_resolved
+        # Variables for finally block
+        roi_source = "none"
         annotation_roi_path = None
         
-        # Process annotation if present (generates ROI from bboxes)
-        if sample.annotation and sample.annotation_type:
-            from .dataset.annotation_processor import process_sample_annotation, AnnotationError
+        try:
+            image_path = sample.image_resolved
+            if not image_path or not image_path.exists():
+                raise FileNotFoundError(f"Image not found: {sample.image}")
             
             try:
-                mask, annotation_roi_path = process_sample_annotation(
-                    sample, sample_out, coco_dataset_cache=coco_cache
-                )
-                # Note: annotation generates mask file, not used directly with orchestrator
-            except AnnotationError as e:
-                if effective_on_annot_error == "abort":
-                    raise
-                else:
-                    console.print(f"  [yellow]Annotation warning:[/yellow] {e}")
-        
-        # Run pipeline via orchestrator
-        pipeline_input = PipelineInput(
-            rgb=rgb,
-            config=cfg,
-            roi_mask_path=roi_mask_path,
-            upscale_factor=effective_upscale,
-            use_ensemble=cfg.model.ensemble,
-        )
-        
-        result = orchestrator.run(pipeline_input)
-        
-        # Export results
-        exporter = ExportManager(sample_out)
-        export_pipeline_output(
-            output=result,
-            exporter=exporter,
-            input_path=image_path,
-            config_path=config,
-            pipeline_version=PIPELINE_VERSION,
-            console=console,
-        )
-        
-        # Add sample-specific metadata to run_config
-        if annotation_roi_path:
-            # Re-export run_config with annotation info
+                rgb = np.array(Image.open(image_path).convert('RGB'))
+            except UnidentifiedImageError:
+                raise ValueError(f"Invalid image format: {image_path}")
+            
+            # Determine ROI mask path (from sample or annotation)
+            roi_mask_path = sample.roi_mask_resolved
+            if roi_mask_path:
+                roi_source = "mask_file"
+            
+            # Process annotation if present (generates ROI from bboxes)
+            if sample.annotation and sample.annotation_type:
+                from .dataset.annotation_processor import process_sample_annotation, AnnotationError
+                
+                # Check for conflict with explicit ROI mask
+                if roi_mask_path:
+                    console.print(f"  [yellow]Warning:[/yellow] Sample {sample.id}: Both annotation and roi_mask specified. Using roi_mask ({roi_mask_path}).")
+                
+                try:
+                    mask, annotation_roi_path = process_sample_annotation(
+                        sample, sample_out, coco_dataset_cache=coco_cache
+                    )
+                    
+                    # Use generated mask if no explicit mask provided
+                    if not roi_mask_path and annotation_roi_path:
+                        roi_mask_path = annotation_roi_path
+                        roi_source = "annotation"
+                        
+                except AnnotationError as e:
+                    if effective_on_annot_error == "abort":
+                        raise
+                    else:
+                        console.print(f"  [yellow]Annotation warning:[/yellow] {e}")
+            
+            # Run pipeline via orchestrator
+            pipeline_input = PipelineInput(
+                rgb=rgb,
+                config=cfg,
+                roi_mask_path=roi_mask_path,
+                upscale_factor=effective_upscale,
+                use_ensemble=cfg.model.ensemble,
+            )
+            
+            result = orchestrator.run(pipeline_input)
+            
+            # Export results
+            exporter = ExportManager(sample_out)
+            export_pipeline_output(
+                output=result,
+                exporter=exporter,
+                input_path=image_path,
+                config_path=config,
+                config_dict=cfg.to_dict(),
+                pipeline_version=PIPELINE_VERSION,
+                console=console,
+            )
+
+        finally:
+            # Add sample-specific metadata to run_config
+            # Always update run_config with annotation/ROI info
             import json
+            import os
             run_config_path = sample_out / "run_config.json"
+            
+            # Ensure directory exists (defensive, as requested)
+            os.makedirs(os.path.dirname(run_config_path), exist_ok=True)
+            
+            run_config_data = {}
             if run_config_path.exists():
-                with open(run_config_path) as f:
-                    run_config_data = json.load(f)
-                run_config_data["sample_id"] = sample.id
-                run_config_data["annotation_roi_path"] = str(annotation_roi_path)
-                run_config_data["annotation_type"] = sample.annotation_type
-                with open(run_config_path, "w") as f:
-                    json.dump(run_config_data, f, indent=2)
+                try:
+                    with open(run_config_path) as f:
+                        run_config_data = json.load(f)
+                except json.JSONDecodeError:
+                    # If corrupt, overwrite
+                    pass
+            
+            # Ensure meta section exists
+            if "meta" not in run_config_data:
+                run_config_data["meta"] = {}
+                
+            # Ensure config section exists
+            if "config" not in run_config_data:
+                run_config_data["config"] = cfg.to_dict()
+                
+            run_config_data["meta"]["sample_id"] = sample.id
+            if annotation_roi_path:
+                run_config_data["meta"]["annotation_roi_path"] = str(annotation_roi_path)
+                run_config_data["meta"]["annotation_type"] = sample.annotation_type
+            
+            run_config_data["meta"]["roi_source"] = roi_source
+            
+            with open(run_config_path, "w") as f:
+                json.dump(run_config_data, f, indent=2)
     
     report = run_dataset(
         manifest=parsed_manifest,

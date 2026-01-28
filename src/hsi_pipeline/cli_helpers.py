@@ -47,6 +47,7 @@ def export_pipeline_output(
     exporter: ExportManager,
     input_path: Path,
     config_path: Path,
+    config_dict: dict,
     pipeline_version: str,
     console: Console,
 ) -> None:
@@ -57,6 +58,7 @@ def export_pipeline_output(
         exporter: Export manager instance.
         input_path: Original input image path.
         config_path: Configuration file path.
+        config_dict: Pipeline configuration dictionary.
         pipeline_version: Pipeline version string.
         console: Console for logging.
     """
@@ -127,6 +129,7 @@ def export_pipeline_output(
         }
     
     exporter.export_run_config(
+        config_dict=config_dict,
         input_path=str(input_path),
         config_path=str(config_path),
         fitting_info=fitting_info,
